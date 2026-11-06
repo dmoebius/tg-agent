@@ -1,33 +1,33 @@
 # tg-agent
 
-Linux-CLI, das **eine** libvirt-VM (Ubuntu 26.04 LTS) verwaltet, darin Claude Code
-startet und die Sessions über [Takopi](https://github.com/banteg/takopi) mit
-**einem** Telegram-Bot verbindet (ein Forum-Topic pro Session).
+Linux CLI that manages **one** libvirt VM (Ubuntu 26.04 LTS), runs Claude Code
+inside it and connects the sessions to **one** Telegram bot via
+[Takopi](https://github.com/banteg/takopi) (one forum topic per session).
 
-## Befehle
+## Commands
 
-| Befehl | Wirkung |
+| Command | Effect |
 |---|---|
-| `tg-agent start`  | Legt die VM beim ersten Mal an (Image laden, cloud-init), startet sie, wartet auf Provisionierung |
-| `tg-agent stop`   | Fährt die VM herunter |
-| `tg-agent status` | VM-Zustand, IP, Takopi-Service, SSH-Kommando |
-| `tg-agent update` | Config in die VM pushen, apt upgrade, Claude + Takopi updaten, Takopi neu starten |
+| `tg-agent start`  | Creates the VM on first run (download image, cloud-init), starts it, waits for provisioning |
+| `tg-agent stop`   | Shuts the VM down |
+| `tg-agent status` | VM state, IP, Takopi service, SSH command |
+| `tg-agent update` | Pushes the config into the VM, runs apt upgrade, updates Claude + Takopi, restarts Takopi |
 
 ## Setup
 
-Voraussetzungen (werden beim Start geprüft, inkl. Installationshinweisen): `virsh`, `virt-install`, `qemu-img`, `ssh`, laufender libvirtd mit Netzwerk `default`, `/dev/kvm`.
+Prerequisites (checked on start, including install hints): `virsh`, `virt-install`, `qemu-img`, `ssh`, running libvirtd with network `default`, `/dev/kvm`.
 
-1. `tg-agent start` fragt beim ersten Aufruf interaktiv nach Bot-Token, Gruppen-Chat-ID und erlaubten Telegram-User-IDs und speichert sie in `~/.config/tg-agent/config.toml` (0600). Vorher: Bot bei @BotFather anlegen, Gruppe mit aktivierten Topics erstellen, Bot als Admin mit „Manage Topics“ hinzufügen.
-2. Danach legt es die VM an (dauert beim ersten Mal einige Minuten) und startet interaktiv `claude auth login --claudeai` in der VM (Claude-Subscription).
+1. On first run, `tg-agent start` interactively asks for the bot token, group chat ID and allowed Telegram user IDs and stores them in `~/.config/tg-agent/config.toml` (0600). Beforehand: create a bot via @BotFather, create a group with Topics enabled, add the bot as admin with "Manage Topics".
+2. It then creates the VM (takes a few minutes the first time) and interactively runs `claude auth login --claudeai` in the VM (Claude subscription).
 
-In der VM (User `agent`): Java + SDKMAN, Node LTS + pnpm, Playwright (Chromium), Go, Python + uv, Claude Code, Takopi (systemd-Service `takopi`, Arbeitsverzeichnis `~/work`).
+Inside the VM (user `agent`): Java + SDKMAN, Node LTS + pnpm, Playwright (Chromium), Go, Python + uv, Claude Code, Takopi (systemd service `takopi`, working directory `~/work`).
 
-Hinweis: Bei `qemu:///system` braucht der qemu-User Leserechte auf `data_dir` (Default `~/.local/share/tg-agent`), ggf. `data_dir` nach `/var/lib/libvirt/images/tg-agent` legen.
+Note: with `qemu:///system` the qemu user needs read access to `data_dir` (default `~/.local/share/tg-agent`); if necessary, move `data_dir` to `/var/lib/libvirt/images/tg-agent`.
 
-## Entwicklung
+## Development
 
     make build && make test
 
-## Claude-Skills
+## Claude skills
 
-Die Skills von [mattpocock/skills](https://github.com/mattpocock/skills) kommen als Plugin (`mattpocock-skills@mattpocock`), konfiguriert in `.claude/settings.json`. Claude Code bietet beim Öffnen des Repos die Installation an und hält das Plugin aktuell. Die Repo-Konfiguration für die Skills steht in `CLAUDE.md` und `docs/agents/`.
+The skills from [mattpocock/skills](https://github.com/mattpocock/skills) are provided as a plugin (`mattpocock-skills@mattpocock`), configured in `.claude/settings.json`. Claude Code offers to install it when the repo is opened and keeps the plugin up to date. The repo configuration for the skills lives in `CLAUDE.md` and `docs/agents/`.
