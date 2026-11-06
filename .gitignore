@@ -1,0 +1,4 @@
+/bin/
+/tg-agent
+*.qcow2
+.env
