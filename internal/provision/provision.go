@@ -31,16 +31,12 @@ write_files:
     permissions: "0600"
     encoding: b64
     content: %s
-  - path: /opt/tg-agent/env
-    permissions: "0600"
-    encoding: b64
-    content: %s
   - path: /opt/tg-agent/provision.sh
     permissions: "0700"
     encoding: b64
     content: %s
 runcmd:
   - [bash, /opt/tg-agent/provision.sh]
-`, config.VMName, strings.TrimSpace(sshPubKey), b64(c.TakopiTOML()), b64(c.ClaudeEnv()), b64(script))
+`, config.VMName, strings.TrimSpace(sshPubKey), b64(c.TakopiTOML()), b64(script))
 	return b.String()
 }

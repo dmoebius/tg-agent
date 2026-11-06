@@ -17,7 +17,7 @@ func TestUserDataIsValidCloudConfig(t *testing.T) {
 	if err := yaml.Unmarshal([]byte(ud), &v); err != nil {
 		t.Fatal(err)
 	}
-	if len(v["write_files"].([]any)) != 3 {
+	if len(v["write_files"].([]any)) != 2 {
 		t.Fatal("write_files")
 	}
 }

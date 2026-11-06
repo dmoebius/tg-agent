@@ -16,7 +16,6 @@ const VMName = "tg-agent"
 type Config struct {
 	Telegram Telegram `toml:"telegram"`
 	VM       VM       `toml:"vm"`
-	Claude   Claude   `toml:"claude"`
 }
 
 type Telegram struct {
@@ -36,31 +35,6 @@ type VM struct {
 	DataDir    string `toml:"data_dir"`
 }
 
-type Claude struct {
-	// Optional. If empty, run `claude` inside the VM once to log in.
-	APIKey string `toml:"api_key"`
-}
-
-const Template = `# tg-agent configuration
-[telegram]
-bot_token = ""            # from @BotFather
-chat_id = 0               # forum-enabled supergroup; bot must be admin with "Manage Topics"
-allowed_user_ids = []     # Telegram user ids allowed to talk to the bot (strongly recommended)
-
-[vm]
-cpus = 4
-memory_mb = 8192
-disk_gb = 60
-# image_url = "https://cloud-images.ubuntu.com/resolute/current/resolute-server-cloudimg-amd64.img"
-# libvirt_uri = "qemu:///system"
-# network = "default"
-# os_variant = "ubuntu24.04"
-# data_dir = "~/.local/share/tg-agent"
-
-[claude]
-api_key = ""              # optional
-`
-
 func Dir() string {
 	if d := os.Getenv("XDG_CONFIG_HOME"); d != "" {
 		return filepath.Join(d, "tg-agent")
@@ -71,19 +45,14 @@ func Dir() string {
 
 func Path() string { return filepath.Join(Dir(), "config.toml") }
 
-var ErrCreated = errors.New("config template written; please edit it and re-run")
-
-// Load reads the config. If missing, a template is written and ErrCreated returned.
+// Load reads the config (empty + defaults if the file does not exist yet).
+// It does not validate; call Validate and fill gaps interactively.
 func Load() (*Config, error) {
 	p := Path()
 	if _, err := os.Stat(p); errors.Is(err, os.ErrNotExist) {
-		if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
-			return nil, err
-		}
-		if err := os.WriteFile(p, []byte(Template), 0o600); err != nil {
-			return nil, err
-		}
-		return nil, fmt.Errorf("%w: %s", ErrCreated, p)
+		c := &Config{}
+		c.applyDefaults()
+		return c, nil
 	}
 	return LoadFile(p)
 }
@@ -94,7 +63,21 @@ func LoadFile(p string) (*Config, error) {
 		return nil, fmt.Errorf("%s: %w", p, err)
 	}
 	c.applyDefaults()
-	return c, c.Validate()
+	return c, nil
+}
+
+// Save writes the config with mode 0600 (it contains the bot token).
+func (c *Config) Save() error {
+	p := Path()
+	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return toml.NewEncoder(f).Encode(c)
 }
 
 func (c *Config) applyDefaults() {
@@ -154,12 +137,4 @@ show_resume_line = false
 enabled = true
 scope = "main"
 `, c.Telegram.BotToken, c.Telegram.ChatID, strings.Join(ids, ", "))
-}
-
-// ClaudeEnv renders the systemd EnvironmentFile for the takopi service.
-func (c *Config) ClaudeEnv() string {
-	if c.Claude.APIKey == "" {
-		return "\n"
-	}
-	return "ANTHROPIC_API_KEY=" + c.Claude.APIKey + "\n"
 }

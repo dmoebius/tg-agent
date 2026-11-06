@@ -4,6 +4,7 @@ package ssh
 import (
 	"context"
 	"io"
+	"os"
 	"os/exec"
 )
 
@@ -25,6 +26,13 @@ func (c Client) args(extra ...string) []string {
 func (c Client) Run(ctx context.Context, out io.Writer, stdin io.Reader, cmd string) error {
 	e := exec.CommandContext(ctx, "ssh", c.args(cmd)...)
 	e.Stdout, e.Stderr, e.Stdin = out, out, stdin
+	return e.Run()
+}
+
+// Interactive runs cmd with a TTY attached to the user's terminal.
+func (c Client) Interactive(ctx context.Context, cmd string) error {
+	e := exec.CommandContext(ctx, "ssh", append([]string{"-t"}, c.args(cmd)...)...)
+	e.Stdin, e.Stdout, e.Stderr = os.Stdin, os.Stdout, os.Stderr
 	return e.Run()
 }
 

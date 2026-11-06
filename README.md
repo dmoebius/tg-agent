@@ -15,12 +15,10 @@ startet und die Sessions über [Takopi](https://github.com/banteg/takopi) mit
 
 ## Setup
 
-Voraussetzungen: `libvirt` (laufender libvirtd, Netzwerk `default`), `virt-install`, `virsh`, `qemu-img`, `ssh`.
+Voraussetzungen (werden beim Start geprüft, inkl. Installationshinweisen): `virsh`, `virt-install`, `qemu-img`, `ssh`, laufender libvirtd mit Netzwerk `default`, `/dev/kvm`.
 
-1. `tg-agent start` schreibt beim ersten Aufruf `~/.config/tg-agent/config.toml` (Template) und bricht ab.
-2. Telegram: Supergroup mit aktivierten Topics anlegen, Bot als Admin mit „Manage Topics“ hinzufügen, `bot_token` und `chat_id` eintragen (`allowed_user_ids` setzen!).
-3. `tg-agent start` erneut ausführen. Das dauert beim ersten Mal einige Minuten.
-4. Ohne `claude.api_key`: einmal per SSH einloggen und `claude` zum Anmelden starten.
+1. `tg-agent start` fragt beim ersten Aufruf interaktiv nach Bot-Token, Gruppen-Chat-ID und erlaubten Telegram-User-IDs und speichert sie in `~/.config/tg-agent/config.toml` (0600). Vorher: Bot bei @BotFather anlegen, Gruppe mit aktivierten Topics erstellen, Bot als Admin mit „Manage Topics“ hinzufügen.
+2. Danach legt es die VM an (dauert beim ersten Mal einige Minuten) und startet interaktiv `claude auth login --claudeai` in der VM (Claude-Subscription).
 
 In der VM (User `agent`): Java + SDKMAN, Node LTS + pnpm, Playwright (Chromium), Go, Python + uv, Claude Code, Takopi (systemd-Service `takopi`, Arbeitsverzeichnis `~/work`).
 
@@ -29,3 +27,7 @@ Hinweis: Bei `qemu:///system` braucht der qemu-User Leserechte auf `data_dir` (D
 ## Entwicklung
 
     make build && make test
+
+## Claude-Skills
+
+Die Skills von [mattpocock/skills](https://github.com/mattpocock/skills) liegen vendored unter `.claude/skills/` (Stand siehe `SOURCE.md`). Einmalig pro Repo `/setup-matt-pocock-skills` ausführen.

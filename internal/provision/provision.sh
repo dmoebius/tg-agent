@@ -50,7 +50,6 @@ Wants=network-online.target
 [Service]
 User=$A
 WorkingDirectory=$H/work
-EnvironmentFile=-/opt/tg-agent/env
 ExecStart=/bin/bash -lc 'exec takopi'
 Restart=always
 RestartSec=5
