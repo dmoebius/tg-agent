@@ -35,9 +35,21 @@ func TestValidate(t *testing.T) {
 	}
 }
 
-func TestTemplateParses(t *testing.T) {
-	var c Config
-	if _, err := toml.Decode(Template, &c); err != nil {
+func TestSaveRoundTrip(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	c, err := Load()
+	if err != nil {
 		t.Fatal(err)
+	}
+	c.Telegram = Telegram{BotToken: "t", ChatID: -1, AllowedUserIDs: []int64{7}}
+	if err := c.Save(); err != nil {
+		t.Fatal(err)
+	}
+	c2, err := Load()
+	if err != nil || c2.Validate() != nil || c2.Telegram.AllowedUserIDs[0] != 7 {
+		t.Fatalf("%+v %v", c2, err)
+	}
+	if fi, _ := os.Stat(Path()); fi.Mode().Perm() != 0o600 {
+		t.Fatal("perm")
 	}
 }
