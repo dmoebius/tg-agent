@@ -2,6 +2,8 @@
 
 Go CLI that manages a single libvirt VM running Claude Code and Takopi (Telegram bot, one topic per session). See `README.md`. Build/test: `make build`, `make test`.
 
+**Project language is English**: docs, code, identifiers, strings, comments, commit messages. This applies even when the chat with the user is in German.
+
 ## Agent skills
 
 ### Issue tracker
