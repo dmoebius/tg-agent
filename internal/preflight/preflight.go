@@ -9,27 +9,33 @@ import (
 	"strings"
 )
 
-type tool struct{ bin, pkg string }
+type tool struct{ bin, apt, dnf, pacman string }
 
-// Required host tools and the Debian/Ubuntu package providing each.
+// Required host tools and the packages providing each (Debian/Ubuntu, Fedora, Arch).
 var tools = []tool{
-	{"virsh", "libvirt-clients"},
-	{"virt-install", "virtinst"},
-	{"qemu-img", "qemu-utils"},
-	{"ssh", "openssh-client"},
-	{"ssh-keygen", "openssh-client"},
+	{"virsh", "libvirt-clients", "libvirt-client", "libvirt"},
+	{"virt-install", "virtinst", "virt-install", "virt-install"},
+	{"qemu-img", "qemu-utils", "qemu-img", "qemu-img"},
+	{"ssh", "openssh-client", "openssh-clients", "openssh"},
+	{"ssh-keygen", "openssh-client", "openssh-clients", "openssh"},
 }
 
-// MissingTools returns "bin (package)" entries for tools not found via lookPath.
+// MissingTools returns "bin (apt: .. | dnf: .. | pacman: ..)" entries for tools not found via lookPath.
 func MissingTools(lookPath func(string) (string, error)) []string {
 	var out []string
 	for _, t := range tools {
 		if _, err := lookPath(t.bin); err != nil {
-			out = append(out, fmt.Sprintf("%s (apt: %s)", t.bin, t.pkg))
+			out = append(out, fmt.Sprintf("%s (apt: %s | dnf: %s | pacman: %s)", t.bin, t.apt, t.dnf, t.pacman))
 		}
 	}
 	return out
 }
+
+const daemonHint = `hint: install and start the libvirt daemon, then add your user to the 'libvirt' group
+      apt:    apt install libvirt-daemon-system qemu-system-x86 dnsmasq-base
+      dnf:    dnf install libvirt-daemon-kvm libvirt-daemon-config-network
+      pacman: pacman -S libvirt qemu-base dnsmasq
+      systemctl enable --now libvirtd   (Arch: libvirtd.socket)`
 
 // Check returns a human-readable error listing everything that is missing or misconfigured.
 func Check(ctx context.Context, uri, network string) error {
@@ -39,11 +45,11 @@ func Check(ctx context.Context, uri, network string) error {
 	}
 	if len(probs) == 0 {
 		if out, err := exec.CommandContext(ctx, "virsh", "-c", uri, "list").CombinedOutput(); err != nil {
-			probs = append(probs, fmt.Sprintf("cannot connect to libvirt (%s): %s\n    hint: apt install libvirt-daemon-system qemu-system-x86; systemctl enable --now libvirtd; add your user to the 'libvirt' group",
-				uri, strings.TrimSpace(string(out))))
+			probs = append(probs, fmt.Sprintf("cannot connect to libvirt (%s): %s\n    %s",
+				uri, strings.TrimSpace(string(out)), daemonHint))
 		} else if out, err := exec.CommandContext(ctx, "virsh", "-c", uri, "net-info", network).CombinedOutput(); err != nil {
-			probs = append(probs, fmt.Sprintf("libvirt network %q not available: %s\n    hint: virsh net-start %s; virsh net-autostart %s",
-				network, strings.TrimSpace(string(out)), network, network))
+			probs = append(probs, fmt.Sprintf("libvirt network %q not available: %s\n    hint: virsh -c %s net-start %s; virsh -c %s net-autostart %s",
+				network, strings.TrimSpace(string(out)), uri, network, uri, network))
 		}
 	}
 	if _, err := os.Stat("/dev/kvm"); err != nil {

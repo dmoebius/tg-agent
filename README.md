@@ -30,4 +30,6 @@ Hinweis: Bei `qemu:///system` braucht der qemu-User Leserechte auf `data_dir` (D
 
 ## Claude-Skills
 
-Die Skills von [mattpocock/skills](https://github.com/mattpocock/skills) liegen vendored unter `.claude/skills/` (Stand siehe `SOURCE.md`). Einmalig pro Repo `/setup-matt-pocock-skills` ausführen.
+Die Skills von [mattpocock/skills](https://github.com/mattpocock/skills) kommen als Plugin (`mattpocock-skills@mattpocock`), konfiguriert in `.claude/settings.json`. Claude Code bietet beim Öffnen des Repos die Installation an und hält das Plugin aktuell. Die Repo-Konfiguration für die Skills steht in `AGENTS.md` und `docs/agents/`.
+
+Hinweis: Claude Code liest `CLAUDE.md`, nicht `AGENTS.md`. Falls der Skills-Block nicht greift, `CLAUDE.md` mit dem Inhalt `@AGENTS.md` anlegen.

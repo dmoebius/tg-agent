@@ -14,7 +14,7 @@ func TestMissingTools(t *testing.T) {
 		return "/usr/bin/" + b, nil
 	}
 	m := strings.Join(MissingTools(look), ",")
-	if !strings.Contains(m, "virtinst") || !strings.Contains(m, "qemu-utils") || strings.Contains(m, "virsh") {
+	if !strings.Contains(m, "virtinst") || !strings.Contains(m, "qemu-utils") || !strings.Contains(m, "dnf: virt-install") || !strings.Contains(m, "pacman: qemu-img") || strings.Contains(m, "virsh") {
 		t.Fatal(m)
 	}
 }
