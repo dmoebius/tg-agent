@@ -4,6 +4,13 @@ Go CLI that manages a single libvirt VM running Claude Code and Takopi (Telegram
 
 **Project language is English**: docs, code, identifiers, strings, comments, commit messages. This applies even when the chat with the user is in German.
 
+## Git workflow
+
+- Simple changes: commit and push directly to `main`.
+- Complex changes: feature branch with prefix `feat/`.
+- Fixes: branch with prefix `fix/`.
+- When in doubt, ask the user.
+
 ## Agent skills
 
 ### Issue tracker
