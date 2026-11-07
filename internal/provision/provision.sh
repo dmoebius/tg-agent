@@ -131,6 +131,22 @@ as_agent 'grep -qxF ".worktrees/" ~/.config/git/ignore || echo ".worktrees/" >> 
 install -d -o $A -g $A -m 700 $H/.takopi
 install -o $A -g $A -m 600 /opt/tg-agent/takopi.toml $H/.takopi/takopi.toml
 install -d -o $A -g $A $H/work
+# Takopi's lock file only records a PID. After the VM was stopped or forced
+# off, that PID may belong to another process in the next boot, and Takopi
+# then refuses to start ("already running") and restarts forever. A lock from
+# before the current boot is always stale, so drop it before each start.
+install -d /usr/local/lib/tg-agent
+cat >/usr/local/lib/tg-agent/takopi-clear-stale-lock <<'EOT'
+#!/bin/sh
+lock="$1"
+[ -e "$lock" ] || exit 0
+boot=$(( $(date +%s) - $(cut -d. -f1 /proc/uptime) ))
+if [ "$(stat -c %Y "$lock")" -lt "$boot" ]; then
+  echo "removing stale $lock from a previous boot"
+  rm -f "$lock"
+fi
+EOT
+chmod 755 /usr/local/lib/tg-agent/takopi-clear-stale-lock
 cat >/etc/systemd/system/takopi.service <<EOT
 [Unit]
 Description=Takopi (Telegram <-> Claude)
@@ -140,6 +156,7 @@ Wants=network-online.target
 [Service]
 User=$A
 WorkingDirectory=$H/work
+ExecStartPre=/usr/local/lib/tg-agent/takopi-clear-stale-lock $H/.takopi/takopi.lock
 ExecStart=/bin/bash -lc 'exec takopi'
 Restart=always
 RestartSec=5
