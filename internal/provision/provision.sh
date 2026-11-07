@@ -1,5 +1,7 @@
 #!/bin/bash
-# Runs once as root via cloud-init. Installs dev tools, Claude Code, Takopi.
+# Provisioning: runs as root, first via cloud-init and again on every
+# `tg-agent update`. Must stay idempotent: installs missing tools and
+# upgrades existing ones. Expects /opt/tg-agent/takopi.toml.
 set -euxo pipefail
 export DEBIAN_FRONTEND=noninteractive
 A=agent
@@ -15,9 +17,12 @@ curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
 apt-get install -y nodejs
 npm install -g pnpm
 
-# Go (latest stable)
+# Go (latest stable; replaced only when a newer release exists)
 GOV=$(curl -fsSL 'https://go.dev/VERSION?m=text' | head -1)
-curl -fsSL "https://go.dev/dl/${GOV}.linux-amd64.tar.gz" | tar -C /usr/local -xz
+if [ "$(head -1 /usr/local/go/VERSION 2>/dev/null || true)" != "$GOV" ]; then
+  rm -rf /usr/local/go
+  curl -fsSL "https://go.dev/dl/${GOV}.linux-amd64.tar.gz" | tar -C /usr/local -xz
+fi
 
 # Playwright (browsers shared system-wide)
 cat >/etc/profile.d/tg-agent.sh <<'EOT'
@@ -30,12 +35,16 @@ playwright install --with-deps chromium
 chmod -R a+rX /opt/pw-browsers
 
 # SDKMAN + Java, uv, Claude Code, Takopi (as agent)
-as_agent 'curl -s https://get.sdkman.io | bash'
-as_agent 'echo "source ~/.sdkman/bin/sdkman-init.sh" >> ~/.profile'
-as_agent 'source ~/.sdkman/bin/sdkman-init.sh && sdk install java < /dev/null'
-as_agent 'curl -LsSf https://astral.sh/uv/install.sh | sh'
-as_agent 'curl -fsSL https://claude.ai/install.sh | bash'
+as_agent '[ -d ~/.sdkman ] || curl -s https://get.sdkman.io | bash'
+as_agent 'grep -qxF "source ~/.sdkman/bin/sdkman-init.sh" ~/.profile || echo "source ~/.sdkman/bin/sdkman-init.sh" >> ~/.profile'
+as_agent 'source ~/.sdkman/bin/sdkman-init.sh && { [ -e ~/.sdkman/candidates/java/current ] || sdk install java < /dev/null; }'
+as_agent '{ command -v uv >/dev/null && uv self update; } || curl -LsSf https://astral.sh/uv/install.sh | sh'
+as_agent '{ command -v claude >/dev/null && claude update; } || curl -fsSL https://claude.ai/install.sh | bash'
 as_agent 'uv tool install -U takopi'
+
+# Git: keep Takopi's per-branch worktrees out of `git status`
+as_agent 'mkdir -p ~/.config/git && touch ~/.config/git/ignore && git config --global core.excludesfile ~/.config/git/ignore'
+as_agent 'grep -qxF ".worktrees/" ~/.config/git/ignore || echo ".worktrees/" >> ~/.config/git/ignore'
 
 # Takopi config + service
 install -d -o $A -g $A -m 700 $H/.takopi

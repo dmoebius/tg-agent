@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 type Client struct {
@@ -44,4 +45,9 @@ func (c Client) Output(ctx context.Context, cmd string) (string, error) {
 // Command returns the interactive command line users can paste.
 func (c Client) Command() string {
 	return "ssh -i " + c.Key + " agent@" + c.Host
+}
+
+// Quote quotes s for safe use as a single word in a remote POSIX shell command.
+func Quote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }

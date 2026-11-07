@@ -13,6 +13,9 @@ import (
 //go:embed provision.sh
 var script string
 
+// Script returns provision.sh, the idempotent Provisioning script.
+func Script() string { return script }
+
 func b64(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) }
 
 // UserData renders cloud-init user-data. The heavy lifting is done by provision.sh.
