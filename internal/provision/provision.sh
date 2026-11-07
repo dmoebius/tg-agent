@@ -52,6 +52,9 @@ export PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers
 npm install -g playwright
 playwright install --with-deps chromium
 chmod -R a+rX /opt/pw-browsers
+# The browser binaries sit in versioned subdirectories (chromium-<rev>/chrome-linux*/),
+# so put the newest Chromium on PATH via a stable symlink instead.
+ln -sfn "$(ls -d /opt/pw-browsers/chromium-[0-9]*/chrome-linux*/chrome | sort -V | tail -1)" /usr/local/bin/chromium
 
 # SDKMAN + Java, uv, Claude Code, Takopi (as agent)
 as_agent '[ -d ~/.sdkman ] || curl -s https://get.sdkman.io | bash'

@@ -37,7 +37,7 @@ Projects are registered with Takopi inside the VM, not in `config.toml`. Either 
 
 Send `/topic <alias> @<branch>` in the forum: Takopi creates a new topic named after it and binds it. A topic you create by hand in Telegram stays unbound until you send `/ctx set <alias> @<branch>` in it. `/ctx` shows the binding, `/new` resets the topic's session.
 
-Inside the VM (user `agent`, passwordless sudo, so sessions can install packages themselves): GitHub CLI `gh`, GitLab CLI `glab`, Java + SDKMAN, Node LTS + pnpm, Playwright (Chromium), Go, Python + uv, Claude Code, Takopi (systemd service `takopi`, working directory `~/work`).
+Inside the VM (user `agent`, passwordless sudo, so sessions can install packages themselves): GitHub CLI `gh`, GitLab CLI `glab`, Java + SDKMAN, Node LTS + pnpm, Playwright (Chromium, also on `PATH` as `chromium`), Go, Python + uv, Claude Code, Takopi (systemd service `takopi`, working directory `~/work`).
 
 Note: with `qemu:///system` the qemu user needs read access to `data_dir` (default `~/.local/share/tg-agent`); if necessary, move `data_dir` to `/var/lib/libvirt/images/tg-agent`.
 
