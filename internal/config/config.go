@@ -13,6 +13,13 @@ import (
 
 const VMName = "tg-agent"
 
+// DefaultOSVariant matches the default image (Ubuntu 26.04). Hosts whose
+// osinfo-db is too old to know it fall back to FallbackOSVariant.
+const (
+	DefaultOSVariant  = "ubuntu26.04"
+	FallbackOSVariant = "ubuntu24.04"
+)
+
 type Config struct {
 	Telegram Telegram `toml:"telegram"`
 	VM       VM       `toml:"vm"`
@@ -98,7 +105,7 @@ func (c *Config) applyDefaults() {
 	def(&v.ImageURL, "https://cloud-images.ubuntu.com/resolute/current/resolute-server-cloudimg-amd64.img")
 	def(&v.LibvirtURI, "qemu:///system")
 	def(&v.Network, "default")
-	def(&v.OSVariant, "ubuntu24.04")
+	def(&v.OSVariant, DefaultOSVariant)
 	h, _ := os.UserHomeDir()
 	def(&v.DataDir, filepath.Join(h, ".local", "share", "tg-agent"))
 	if strings.HasPrefix(v.DataDir, "~/") {

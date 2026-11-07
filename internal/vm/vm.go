@@ -192,6 +192,7 @@ func (m *Manager) create(ctx context.Context) error {
 	if err := os.WriteFile(md, []byte("instance-id: "+config.VMName+"\n"), 0o600); err != nil {
 		return err
 	}
+	osVariant := m.osVariant(ctx)
 	fmt.Fprintln(m.Out, "Creating VM ...")
 	_, err = m.run(ctx, "virt-install",
 		"--connect", m.Cfg.VM.LibvirtURI,
@@ -200,13 +201,42 @@ func (m *Manager) create(ctx context.Context) error {
 		"--memory", fmt.Sprint(m.Cfg.VM.MemoryMB),
 		"--disk", "path="+m.disk()+",bus=virtio",
 		"--import",
-		"--os-variant", m.Cfg.VM.OSVariant,
+		"--os-variant", osVariant,
 		"--network", "network="+m.Cfg.VM.Network,
 		"--graphics", "none",
 		"--noautoconsole",
 		"--cloud-init", "user-data="+ud+",meta-data="+md,
 	)
 	return err
+}
+
+// osVariant returns the configured os_variant, or FallbackOSVariant if it is
+// the default but the host's osinfo-db does not know it yet. A non-default
+// value is passed on as is, so virt-install reports a typo.
+func (m *Manager) osVariant(ctx context.Context) string {
+	v := m.Cfg.VM.OSVariant
+	if v != config.DefaultOSVariant {
+		return v
+	}
+	out, err := m.run(ctx, "virt-install", "--os-variant", "list")
+	if err != nil || knowsOSVariant(out, v) {
+		return v
+	}
+	fmt.Fprintf(m.Out, "virt-install does not know %s (old osinfo-db), using %s\n", v, config.FallbackOSVariant)
+	return config.FallbackOSVariant
+}
+
+// knowsOSVariant reports whether the output of `virt-install --os-variant
+// list` (one OS per line, aliases comma separated) contains v.
+func knowsOSVariant(list, v string) bool {
+	for _, line := range strings.Split(list, "\n") {
+		for _, name := range strings.Split(line, ",") {
+			if strings.TrimSpace(name) == v {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // Stop shuts the VM down gracefully, forcing it off after 60 seconds.
