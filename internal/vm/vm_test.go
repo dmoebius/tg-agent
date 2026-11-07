@@ -15,3 +15,12 @@ func TestParseIP(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+func TestHasDomain(t *testing.T) {
+	if !hasDomain("other\ntg-agent\n\n", "tg-agent") {
+		t.Error("not found")
+	}
+	if hasDomain("tg-agent-old\n\n", "tg-agent") || hasDomain("", "tg-agent") {
+		t.Error("false positive")
+	}
+}

@@ -73,10 +73,12 @@ func setup(ctx context.Context) (*vm.Manager, error) {
 func askTelegram(ctx context.Context, cfg *config.Config) error {
 	t := &cfg.Telegram
 	fmt.Println(`Telegram setup:
-  1. Create a bot with @BotFather and copy its token.
+  1. Open https://web.telegram.org/ and chat with @BotFather, write message "/newbot"
+     and follow instructions. Remember the bot token.
   2. Create a group, enable "Topics" in its settings, add the bot as admin with "Manage Topics".`)
 	var err error
 	if t.BotToken == "" {
+		fmt.Println("  3. After that, enter the bot token here:")
 		if t.BotToken, err = prompt.Secret("Bot token"); err != nil {
 			return err
 		}
@@ -123,7 +125,7 @@ func discoverOrigin(ctx context.Context, token string) telegram.Origin {
 		fmt.Println("  could not verify the bot token:", err)
 		return telegram.Origin{}
 	}
-	fmt.Printf("  3. Now send a message mentioning @%s in any topic of the forum (waiting up to 3 minutes) ...\n", name)
+	fmt.Printf("  4. Now send a message mentioning @%s in any topic of the forum (waiting up to 3 minutes) ...\n", name)
 	dctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
 	o, err := tg.Discover(dctx)

@@ -53,17 +53,32 @@ func (m *Manager) virsh(ctx context.Context, args ...string) (string, error) {
 }
 
 func (m *Manager) State(ctx context.Context) (State, error) {
+	// Ask for the list of domains instead of matching virsh's error text,
+	// which is localized.
+	names, err := m.virsh(ctx, "list", "--all", "--name")
+	if err != nil {
+		return "", err
+	}
+	if !hasDomain(names, config.VMName) {
+		return Missing, nil
+	}
 	out, err := m.virsh(ctx, "domstate", config.VMName)
 	if err != nil {
-		if strings.Contains(out, "failed to get domain") || strings.Contains(out, "Domain not found") {
-			return Missing, nil
-		}
 		return "", err
 	}
 	if strings.TrimSpace(out) == string(Running) {
 		return Running, nil
 	}
 	return Stopped, nil
+}
+
+func hasDomain(names, name string) bool {
+	for _, n := range strings.Split(names, "\n") {
+		if strings.TrimSpace(n) == name {
+			return true
+		}
+	}
+	return false
 }
 
 // EnsureRunning creates the VM on first use, starts it if it is shut off and
