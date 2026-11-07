@@ -68,25 +68,13 @@ func TestRemove(t *testing.T) {
 	if err := c.Save(); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(Dir(), "other"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
 	if existed, err := Remove(); err != nil || !existed {
 		t.Fatalf("existed=%v err=%v", existed, err)
 	}
 	if _, err := os.Stat(Dir()); !os.IsNotExist(err) {
-		t.Fatalf("empty config dir kept: %v", err)
-	}
-
-	// A non-empty directory is kept.
-	if err := c.Save(); err != nil {
-		t.Fatal(err)
-	}
-	other := filepath.Join(Dir(), "other")
-	if err := os.WriteFile(other, nil, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := Remove(); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(other); err != nil {
-		t.Fatalf("unrelated file removed: %v", err)
+		t.Fatalf("config dir kept: %v", err)
 	}
 }

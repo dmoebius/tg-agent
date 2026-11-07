@@ -18,24 +18,27 @@ func newDeleteCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "delete [--wipe-disk | --wipe-all]",
 		Short: "Remove the VM, optionally its disk and the config, to start over",
-		Long: `Removes the VM instance: shuts it down (forcing it off after 30 seconds) and
+		Long: fmt.Sprintf(`Removes the VM instance: shuts it down (forcing it off after 30 seconds) and
 removes it from libvirt (virsh undefine). The disk, data_dir and config are
 kept, so a later "tg-agent start" re-creates the VM on the existing disk.
 
   --wipe-disk  additionally removes data_dir (disk, base image, SSH key,
                cloud-init files) and the libvirt storage pool pointing at it.
                All Projects and Sessions in the VM are lost.
-  --wipe-all   additionally removes the config; the next "tg-agent start"
-               behaves like a first run, including the Telegram setup.
+  --wipe-all   additionally removes the config directory
+               %s COMPLETELY, including config.toml with the Telegram bot token
+               and ids; the next "tg-agent start" behaves like a first run,
+               including the Telegram setup.
 
 Asks for confirmation by typing the VM name; refuses to run without a terminal.`,
+			config.Dir()),
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runDelete(cmd, wipeDisk || wipeAll, wipeAll)
 		},
 	}
 	cmd.Flags().BoolVar(&wipeDisk, "wipe-disk", false, "also remove data_dir (disk, SSH key, ...) and its storage pool")
-	cmd.Flags().BoolVar(&wipeAll, "wipe-all", false, "also remove data_dir and the config (implies --wipe-disk)")
+	cmd.Flags().BoolVar(&wipeAll, "wipe-all", false, "also remove data_dir and the whole config directory incl. the bot token (implies --wipe-disk)")
 	return cmd
 }
 
@@ -61,7 +64,7 @@ func runDelete(cmd *cobra.Command, wipeDisk, wipeConfig bool) error {
 		return err
 	}
 	cfgExists := false
-	if _, err := os.Stat(config.Path()); err == nil {
+	if _, err := os.Stat(config.Dir()); err == nil {
 		cfgExists = true
 	}
 	printDeletePlan(inv, wipeDisk, wipeConfig, cfgExists)
@@ -83,9 +86,9 @@ func runDelete(cmd *cobra.Command, wipeDisk, wipeConfig bool) error {
 			return err
 		}
 		if existed {
-			fmt.Printf("%s removed.\n", config.Path())
+			fmt.Printf("%s removed.\n", config.Dir())
 		} else {
-			fmt.Printf("%s does not exist, skipped.\n", config.Path())
+			fmt.Printf("%s does not exist, skipped.\n", config.Dir())
 		}
 	}
 	fmt.Println("Done.")
@@ -121,9 +124,9 @@ func printDeletePlan(inv *vm.Inventory, wipeDisk, wipeConfig, cfgExists bool) {
 	}
 	if wipeConfig {
 		if cfgExists {
-			fmt.Printf("  config %s (incl. bot token and Telegram ids)\n", config.Path())
+			fmt.Printf("  config directory %s, completely (incl. config.toml with bot token and Telegram ids)\n", config.Dir())
 		} else {
-			fmt.Printf("  config %s: does not exist, nothing to do\n", config.Path())
+			fmt.Printf("  config directory %s: does not exist, nothing to do\n", config.Dir())
 		}
 	}
 	fmt.Println()

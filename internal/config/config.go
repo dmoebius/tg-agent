@@ -119,19 +119,12 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// Remove deletes the config file and then the config directory if it is
-// empty. Neither existing is not an error. It reports whether the file
-// existed.
+// Remove deletes the config directory with everything in it, including the
+// config file with the bot token. A missing directory is not an error. It
+// reports whether the directory existed.
 func Remove() (bool, error) {
-	err := os.Remove(Path())
-	existed := err == nil
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return false, err
+	if _, err := os.Stat(Dir()); errors.Is(err, os.ErrNotExist) {
+		return false, nil
 	}
-	if des, err := os.ReadDir(Dir()); err == nil && len(des) == 0 {
-		if err := os.Remove(Dir()); err != nil {
-			return existed, err
-		}
-	}
-	return existed, nil
+	return true, os.RemoveAll(Dir())
 }
