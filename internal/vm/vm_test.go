@@ -48,3 +48,13 @@ func TestDirsToGrant(t *testing.T) {
 		t.Fatalf("granted on a directory of another user: %q", got)
 	}
 }
+
+func TestKnowsOSVariant(t *testing.T) {
+	list := "ubuntu-lts-latest, ubuntu-stable-latest, ubuntu26.04, ubunturesolute\nubuntu24.04, ubuntunoble\n"
+	if !knowsOSVariant(list, "ubuntu26.04") || !knowsOSVariant(list, "ubuntu24.04") {
+		t.Error("variant not found")
+	}
+	if knowsOSVariant(list, "ubuntu26") || knowsOSVariant(list, "ubuntu25.10") {
+		t.Error("false positive")
+	}
+}
