@@ -41,6 +41,9 @@ func (m *Manager) knownHosts() string { return filepath.Join(m.dir(), "known_hos
 
 func (m *Manager) run(ctx context.Context, name string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
+	// Output is parsed (e.g. virsh domstate prints "läuft" in German), so
+	// force untranslated messages. LC_ALL overrides LANG and LC_*.
+	cmd.Env = append(os.Environ(), "LC_ALL=C")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return string(out), fmt.Errorf("%s %s: %w\n%s", name, strings.Join(args, " "), err, out)
@@ -139,12 +142,15 @@ func (m *Manager) dial(ctx context.Context) (*Conn, error) {
 // create downloads the image, prepares the disk (unless one exists already)
 // and defines + starts the VM.
 func (m *Manager) create(ctx context.Context) error {
-	for _, bin := range []string{"virsh", "virt-install", "qemu-img", "ssh", "ssh-keygen"} {
+	for _, bin := range []string{"virsh", "virt-install", "qemu-img", "ssh", "ssh-keygen", "setfacl"} {
 		if _, err := exec.LookPath(bin); err != nil {
 			return fmt.Errorf("required tool %q not found in PATH", bin)
 		}
 	}
 	if err := os.MkdirAll(m.dir(), 0o700); err != nil {
+		return err
+	}
+	if err := m.grantHypervisorAccess(ctx); err != nil {
 		return err
 	}
 	if _, err := os.Stat(m.keyPath()); errors.Is(err, os.ErrNotExist) {

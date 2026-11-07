@@ -18,6 +18,7 @@ var tools = []tool{
 	{"qemu-img", "qemu-utils", "qemu-img", "qemu-img"},
 	{"ssh", "openssh-client", "openssh-clients", "openssh"},
 	{"ssh-keygen", "openssh-client", "openssh-clients", "openssh"},
+	{"setfacl", "acl", "acl", "acl"},
 }
 
 // MissingTools returns "bin (apt: .. | dnf: .. | pacman: ..)" entries for tools not found via lookPath.

@@ -39,7 +39,7 @@ Send `/topic <alias> @<branch>` in the forum: Takopi creates a new topic named a
 
 Inside the VM (user `agent`, passwordless sudo, so sessions can install packages themselves): GitHub CLI `gh`, GitLab CLI `glab`, Java + SDKMAN, Node LTS + pnpm, Playwright (Chromium, also on `PATH` as `chromium`), Go, Python + uv, Claude Code, Takopi (systemd service `takopi`, working directory `~/work`).
 
-Note: with `qemu:///system` the qemu user needs read access to `data_dir` (default `~/.local/share/tg-agent`); if necessary, move `data_dir` to `/var/lib/libvirt/images/tg-agent`.
+Note: with `qemu:///system` the qemu user (`libvirt-qemu` or `qemu`) must be able to reach the disk in `data_dir` (default `~/.local/share/tg-agent`). `tg-agent start` therefore adds a search-only ACL (`setfacl -m u:libvirt-qemu:x`) to `data_dir` and to each of its parent directories that you own and that others cannot enter, like virt-manager does. If you do not want that, set `data_dir` to e.g. `/var/lib/libvirt/images/tg-agent`.
 
 ## Development
 
