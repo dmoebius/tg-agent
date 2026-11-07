@@ -1,50 +1,22 @@
-package main
+package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"strings"
-
-	"github.com/spf13/cobra"
 
 	"github.com/dmoebius/tg-agent/internal/config"
 	"github.com/dmoebius/tg-agent/internal/prompt"
 	"github.com/dmoebius/tg-agent/internal/vm"
 )
 
-func newDeleteCmd() *cobra.Command {
-	var wipeDisk, wipeAll bool
-	cmd := &cobra.Command{
-		Use:   "delete [--wipe-disk | --wipe-all]",
-		Short: "Remove the VM, optionally its disk and the config, to start over",
-		Long: fmt.Sprintf(`Removes the VM instance: shuts it down (forcing it off after 30 seconds) and
-removes it from libvirt (virsh undefine). The disk, data_dir and config are
-kept, so a later "tg-agent start" re-creates the VM on the existing disk.
-
-  --wipe-disk  additionally removes data_dir (disk, base image, SSH key,
-               cloud-init files) and the libvirt storage pool pointing at it.
-               All Projects and Sessions in the VM are lost.
-  --wipe-all   additionally removes the config directory
-               %s COMPLETELY,
-               including config.toml with the Telegram bot token and ids;
-               the next "tg-agent start" behaves like a first run, including
-               the Telegram setup.
-
-Asks for confirmation by typing the VM name; refuses to run without a terminal.`,
-			config.Dir()),
-		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runDelete(cmd, wipeDisk || wipeAll, wipeAll)
-		},
-	}
-	cmd.Flags().BoolVar(&wipeDisk, "wipe-disk", false, "also remove data_dir (disk, SSH key, ...) and its storage pool")
-	cmd.Flags().BoolVar(&wipeAll, "wipe-all", false, "also remove data_dir and the whole config directory incl. the bot token (implies --wipe-disk)")
-	return cmd
-}
-
-func runDelete(cmd *cobra.Command, wipeDisk, wipeConfig bool) error {
-	ctx := cmd.Context()
+// Delete shuts the VM down and removes it from libvirt. wipeDisk also removes
+// data_dir and its storage pool, wipeConfig also the config directory. It
+// shows what will be destroyed and asks for confirmation; it refuses to run
+// without a terminal.
+func Delete(ctx context.Context, wipeDisk, wipeConfig bool) error {
 	if !prompt.Interactive() {
 		return errors.New("delete needs a terminal to confirm; refusing to run non-interactively")
 	}
