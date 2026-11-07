@@ -2,12 +2,9 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/signal"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -15,9 +12,6 @@ import (
 	"github.com/dmoebius/tg-agent/internal/config"
 	"github.com/dmoebius/tg-agent/internal/preflight"
 	"github.com/dmoebius/tg-agent/internal/prompt"
-	"github.com/dmoebius/tg-agent/internal/provision"
-	"github.com/dmoebius/tg-agent/internal/ssh"
-	"github.com/dmoebius/tg-agent/internal/takopi"
 	"github.com/dmoebius/tg-agent/internal/telegram"
 	"github.com/dmoebius/tg-agent/internal/vm"
 )
@@ -143,89 +137,29 @@ func discoverOrigin(ctx context.Context, token string) telegram.Origin {
 	return o
 }
 
-func sshClient(ctx context.Context, m *vm.Manager) (ssh.Client, error) {
-	ip, err := m.IP(ctx)
-	if err != nil {
-		return ssh.Client{}, err
-	}
-	return ssh.Client{Host: ip, Key: m.KeyPath(), KnownHosts: m.KnownHosts()}, nil
-}
-
-func waitSSH(ctx context.Context, m *vm.Manager) (ssh.Client, error) {
-	deadline := time.Now().Add(5 * time.Minute)
-	for {
-		if c, err := sshClient(ctx, m); err == nil {
-			if _, err := c.Output(ctx, "true"); err == nil {
-				return c, nil
-			}
-		}
-		if time.Now().After(deadline) {
-			return ssh.Client{}, errors.New("timed out waiting for SSH")
-		}
-		select {
-		case <-ctx.Done():
-			return ssh.Client{}, ctx.Err()
-		case <-time.After(3 * time.Second):
-		}
-	}
-}
-
 func runStart(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 	m, err := setup(ctx)
 	if err != nil {
 		return err
 	}
-	st, err := m.State(ctx)
-	if err != nil {
+	if err := m.EnsureRunning(ctx); err != nil {
 		return err
 	}
-	switch st {
-	case vm.Missing:
-		if err := m.Create(ctx); err != nil {
-			return err
-		}
-	case vm.Stopped:
-		if err := m.Start(ctx); err != nil {
-			return err
-		}
-	case vm.Running:
-		fmt.Println("VM already running")
-	}
-	c, err := waitSSH(ctx, m)
+	c, err := m.Connect(ctx, 5*time.Minute)
 	if err != nil {
 		return err
 	}
 	fmt.Println("Waiting for provisioning (cloud-init) ...")
-	if err := c.Run(ctx, os.Stdout, nil, "cloud-init status --wait --long"); err != nil {
-		return fmt.Errorf("provisioning failed, see /var/log/cloud-init-output.log in the VM: %w", err)
+	if err := c.WaitProvisioned(ctx); err != nil {
+		return err
 	}
-	if err := ensureClaudeAuth(ctx, c); err != nil {
+	if err := c.EnsureClaudeAuth(ctx, prompt.Interactive()); err != nil {
 		return err
 	}
 	fmt.Println("Ready. Register a project in the VM (`cd ~/work/<repo> && takopi init <alias>`, or ask Claude in the forum to do it),")
 	fmt.Println("then open a topic for it with `/topic <alias> @<branch>`.")
 	return nil
-}
-
-// ensureClaudeAuth runs `claude auth login` (subscription) in the VM if not logged in yet.
-func ensureClaudeAuth(ctx context.Context, c ssh.Client) error {
-	if _, err := c.Output(ctx, `bash -lc 'claude auth status --text'`); err == nil {
-		return nil
-	}
-	if !prompt.Interactive() {
-		return fmt.Errorf("Claude is not logged in; run `%s` and then `claude auth login`", c.Command())
-	}
-	fmt.Println("Claude is not logged in. Starting `claude auth login` (Claude subscription) ...")
-	if err := c.Interactive(ctx, `bash -lc 'claude auth login --claudeai'`); err != nil {
-		return fmt.Errorf("claude auth login: %w", err)
-	}
-	_, err := c.Output(ctx, `bash -lc 'claude auth status --text'`)
-	if err != nil {
-		return errors.New("Claude login did not complete")
-	}
-	_, err = c.Output(ctx, "sudo systemctl restart takopi")
-	return err
 }
 
 func runStop(cmd *cobra.Command, _ []string) error {
@@ -259,15 +193,14 @@ func runStatus(cmd *cobra.Command, _ []string) error {
 	if st != vm.Running {
 		return nil
 	}
-	c, err := sshClient(ctx, m)
+	c, err := m.Connect(ctx, 0)
 	if err != nil {
-		fmt.Println("IP:      unknown")
+		fmt.Println("SSH:     unreachable:", err)
 		return nil
 	}
 	fmt.Println("IP:     ", c.Host)
-	out, _ := c.Output(ctx, "systemctl is-active takopi")
-	fmt.Println("Takopi: ", strings.TrimSpace(out))
-	fmt.Println("SSH:    ", c.Command())
+	fmt.Println("Takopi: ", c.TakopiStatus(ctx))
+	fmt.Println("SSH:    ", c.SSHCommand())
 	return nil
 }
 
@@ -280,44 +213,9 @@ func runUpdate(cmd *cobra.Command, _ []string) error {
 	if st, err := m.State(ctx); err != nil || st != vm.Running {
 		return fmt.Errorf("VM must be running (state=%v, err=%v); run `tg-agent start`", st, err)
 	}
-	c, err := sshClient(ctx, m)
+	c, err := m.Connect(ctx, 0)
 	if err != nil {
 		return err
 	}
-	// Takopi owns takopi.toml (Projects etc.); only merge our keys into it.
-	current, err := c.Output(ctx, "cat ~/.takopi/takopi.toml 2>/dev/null || true")
-	if err != nil {
-		return fmt.Errorf("read takopi.toml: %w", err)
-	}
-	tk, err := takopi.Merge(current, m.Cfg.Telegram)
-	if err != nil {
-		return err
-	}
-	// Provisioning installs the uploaded takopi.toml and upgrades or installs
-	// every tool, so a changed provision.sh takes effect here too.
-	const upload = "sudo install -d -m 700 /opt/tg-agent && sudo sh -c 'umask 077 && cat > /opt/tg-agent/%s'"
-	steps := []struct {
-		desc, cmd string
-		stdin     string
-	}{
-		{"config", fmt.Sprintf(upload, "takopi.toml"), tk},
-		{"provision script", fmt.Sprintf(upload, "provision.sh"), provision.Script()},
-		{"apt", "sudo DEBIAN_FRONTEND=noninteractive apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get -y upgrade", ""},
-		{"provision", "sudo bash /opt/tg-agent/provision.sh", ""},
-	}
-	for _, s := range steps {
-		fmt.Printf("==> %s\n", s.desc)
-		var in io.Reader
-		if s.stdin != "" {
-			in = strings.NewReader(s.stdin)
-		}
-		if err := c.Run(ctx, os.Stdout, in, s.cmd); err != nil {
-			return fmt.Errorf("%s: %w", s.desc, err)
-		}
-	}
-	fmt.Println("==> restart")
-	if err := c.Run(ctx, os.Stdout, nil, "sudo systemctl restart takopi"); err != nil {
-		return fmt.Errorf("restart: %w", err)
-	}
-	return nil
+	return c.Update(ctx, m.Cfg.Telegram)
 }

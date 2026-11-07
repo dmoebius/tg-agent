@@ -13,9 +13,11 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/dmoebius/tg-agent/internal/config"
 	"github.com/dmoebius/tg-agent/internal/provision"
+	"github.com/dmoebius/tg-agent/internal/ssh"
 )
 
 type State string
@@ -34,8 +36,8 @@ type Manager struct {
 func (m *Manager) dir() string        { return m.Cfg.VM.DataDir }
 func (m *Manager) baseImg() string    { return filepath.Join(m.dir(), "base.img") }
 func (m *Manager) disk() string       { return filepath.Join(m.dir(), "disk.qcow2") }
-func (m *Manager) KeyPath() string    { return filepath.Join(m.dir(), "id_ed25519") }
-func (m *Manager) KnownHosts() string { return filepath.Join(m.dir(), "known_hosts") }
+func (m *Manager) keyPath() string    { return filepath.Join(m.dir(), "id_ed25519") }
+func (m *Manager) knownHosts() string { return filepath.Join(m.dir(), "known_hosts") }
 
 func (m *Manager) run(ctx context.Context, name string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
@@ -64,9 +66,64 @@ func (m *Manager) State(ctx context.Context) (State, error) {
 	return Stopped, nil
 }
 
-// Create downloads the image, prepares the disk (unless one exists already)
+// EnsureRunning creates the VM on first use, starts it if it is shut off and
+// does nothing if it already runs. It does not wait for the VM to boot; see
+// Connect.
+func (m *Manager) EnsureRunning(ctx context.Context) error {
+	st, err := m.State(ctx)
+	if err != nil {
+		return err
+	}
+	switch st {
+	case Missing:
+		return m.create(ctx)
+	case Stopped:
+		_, err := m.virsh(ctx, "start", config.VMName)
+		return err
+	default:
+		fmt.Fprintln(m.Out, "VM already running")
+		return nil
+	}
+}
+
+// Connect returns a connection into the running VM, retrying for up to
+// timeout while the VM boots (0: try once).
+func (m *Manager) Connect(ctx context.Context, timeout time.Duration) (*Conn, error) {
+	deadline := time.Now().Add(timeout)
+	for {
+		c, err := m.dial(ctx)
+		if err == nil {
+			return c, nil
+		}
+		if !time.Now().Before(deadline) {
+			if timeout > 0 {
+				return nil, fmt.Errorf("timed out waiting for SSH: %w", err)
+			}
+			return nil, err
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(3 * time.Second):
+		}
+	}
+}
+
+func (m *Manager) dial(ctx context.Context) (*Conn, error) {
+	ip, err := m.ip(ctx)
+	if err != nil {
+		return nil, err
+	}
+	r := ssh.Client{Host: ip, Key: m.keyPath(), KnownHosts: m.knownHosts()}
+	if _, err := r.Output(ctx, "true"); err != nil {
+		return nil, fmt.Errorf("ssh %s: %w", ip, err)
+	}
+	return &Conn{Host: ip, r: r, out: m.Out}, nil
+}
+
+// create downloads the image, prepares the disk (unless one exists already)
 // and defines + starts the VM.
-func (m *Manager) Create(ctx context.Context) error {
+func (m *Manager) create(ctx context.Context) error {
 	for _, bin := range []string{"virsh", "virt-install", "qemu-img", "ssh", "ssh-keygen"} {
 		if _, err := exec.LookPath(bin); err != nil {
 			return fmt.Errorf("required tool %q not found in PATH", bin)
@@ -75,8 +132,8 @@ func (m *Manager) Create(ctx context.Context) error {
 	if err := os.MkdirAll(m.dir(), 0o700); err != nil {
 		return err
 	}
-	if _, err := os.Stat(m.KeyPath()); errors.Is(err, os.ErrNotExist) {
-		if _, err := m.run(ctx, "ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", "tg-agent", "-f", m.KeyPath()); err != nil {
+	if _, err := os.Stat(m.keyPath()); errors.Is(err, os.ErrNotExist) {
+		if _, err := m.run(ctx, "ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", "tg-agent", "-f", m.keyPath()); err != nil {
 			return err
 		}
 	}
@@ -98,7 +155,7 @@ func (m *Manager) Create(ctx context.Context) error {
 	} else {
 		return err
 	}
-	pub, err := os.ReadFile(m.KeyPath() + ".pub")
+	pub, err := os.ReadFile(m.keyPath() + ".pub")
 	if err != nil {
 		return err
 	}
@@ -131,12 +188,7 @@ func (m *Manager) Create(ctx context.Context) error {
 	return err
 }
 
-func (m *Manager) Start(ctx context.Context) error {
-	_, err := m.virsh(ctx, "start", config.VMName)
-	return err
-}
-
-// Stop shuts the guest down gracefully, forcing off after timeout seconds.
+// Stop shuts the VM down gracefully, forcing it off after 60 seconds.
 func (m *Manager) Stop(ctx context.Context) error {
 	if _, err := m.virsh(ctx, "shutdown", config.VMName); err != nil {
 		return err
@@ -149,7 +201,7 @@ func (m *Manager) Stop(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-after(1):
+		case <-time.After(time.Second):
 		}
 	}
 	_, err := m.virsh(ctx, "destroy", config.VMName)
@@ -158,8 +210,8 @@ func (m *Manager) Stop(ctx context.Context) error {
 
 var ipRe = regexp.MustCompile(`(\d+\.\d+\.\d+\.\d+)/\d+`)
 
-// IP returns the guest's IPv4 address from the DHCP lease.
-func (m *Manager) IP(ctx context.Context) (string, error) {
+// ip returns the VM's IPv4 address from the DHCP lease.
+func (m *Manager) ip(ctx context.Context) (string, error) {
 	out, err := m.virsh(ctx, "domifaddr", config.VMName, "--source", "lease")
 	if err != nil {
 		return "", err

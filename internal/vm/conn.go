@@ -1,0 +1,116 @@
+package vm
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"strings"
+
+	"github.com/dmoebius/tg-agent/internal/config"
+	"github.com/dmoebius/tg-agent/internal/provision"
+)
+
+// runner executes shell commands in the VM. ssh.Client is the real adapter;
+// tests use a fake.
+type runner interface {
+	Run(ctx context.Context, out io.Writer, stdin io.Reader, cmd string) error
+	Output(ctx context.Context, cmd string) (string, error)
+	Interactive(ctx context.Context, cmd string) error
+	Command() string
+}
+
+// Conn is a connection into the running VM. It knows what tg-agent does
+// inside the VM: waiting for Provisioning, logging Claude in, Updates and
+// Takopi's service status.
+type Conn struct {
+	Host string
+	r    runner
+	out  io.Writer
+}
+
+const (
+	claudeAuthStatus = `bash -lc 'claude auth status --text'`
+	restartTakopi    = "sudo systemctl restart takopi"
+)
+
+// SSHCommand returns the ssh command line users can paste to log in.
+func (c *Conn) SSHCommand() string { return c.r.Command() }
+
+// WaitProvisioned blocks until the initial Provisioning (cloud-init) of a
+// new VM has finished; it returns at once on later boots.
+func (c *Conn) WaitProvisioned(ctx context.Context) error {
+	if err := c.r.Run(ctx, c.out, nil, "cloud-init status --wait --long"); err != nil {
+		return fmt.Errorf("provisioning failed, see /var/log/cloud-init-output.log in the VM: %w", err)
+	}
+	return nil
+}
+
+// EnsureClaudeAuth logs Claude in (subscription) if it is not yet, then
+// restarts Takopi so it picks up the credentials. The login needs the user's
+// terminal; without one (interactive false) it returns instructions instead.
+func (c *Conn) EnsureClaudeAuth(ctx context.Context, interactive bool) error {
+	if _, err := c.r.Output(ctx, claudeAuthStatus); err == nil {
+		return nil
+	}
+	if !interactive {
+		return fmt.Errorf("Claude is not logged in; run `%s` and then `claude auth login`", c.r.Command())
+	}
+	fmt.Fprintln(c.out, "Claude is not logged in. Starting `claude auth login` (Claude subscription) ...")
+	if err := c.r.Interactive(ctx, `bash -lc 'claude auth login --claudeai'`); err != nil {
+		return fmt.Errorf("claude auth login: %w", err)
+	}
+	if _, err := c.r.Output(ctx, claudeAuthStatus); err != nil {
+		return errors.New("Claude login did not complete")
+	}
+	_, err := c.r.Output(ctx, restartTakopi)
+	return err
+}
+
+// TakopiStatus returns the state of the Takopi service (e.g. "active").
+func (c *Conn) TakopiStatus(ctx context.Context) string {
+	out, _ := c.r.Output(ctx, "systemctl is-active takopi")
+	return strings.TrimSpace(out)
+}
+
+// Update pushes tg into the VM's takopi.toml (keeping everything Takopi
+// owns), upgrades the system packages, re-runs Provisioning (which installs
+// or upgrades every tool) and restarts Takopi.
+func (c *Conn) Update(ctx context.Context, tg config.Telegram) error {
+	current, err := c.r.Output(ctx, "cat ~/.takopi/takopi.toml 2>/dev/null || true")
+	if err != nil {
+		return fmt.Errorf("read takopi.toml: %w", err)
+	}
+	files, err := provision.Files(tg, current)
+	if err != nil {
+		return err
+	}
+	type step struct{ desc, cmd, stdin string }
+	var steps []step
+	for _, f := range files {
+		steps = append(steps, step{"upload " + f.Path, upload(f), f.Content})
+	}
+	steps = append(steps,
+		step{"apt", "sudo DEBIAN_FRONTEND=noninteractive apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get -y upgrade", ""},
+		step{"provision", "sudo " + provision.Command, ""},
+		step{"restart", restartTakopi, ""},
+	)
+	for _, s := range steps {
+		fmt.Fprintf(c.out, "==> %s\n", s.desc)
+		var in io.Reader
+		if s.stdin != "" {
+			in = strings.NewReader(s.stdin)
+		}
+		if err := c.r.Run(ctx, c.out, in, s.cmd); err != nil {
+			return fmt.Errorf("%s: %w", s.desc, err)
+		}
+	}
+	return nil
+}
+
+// upload returns a command that writes stdin to f.Path with f.Mode, without
+// the content ever being readable by others.
+func upload(f provision.File) string {
+	return fmt.Sprintf("sudo install -d -m 700 %s && sudo sh -c 'umask 077 && cat > %s && chmod %#o %s'",
+		provision.Dir, f.Path, f.Mode, f.Path)
+}
