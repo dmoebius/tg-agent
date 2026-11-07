@@ -84,12 +84,31 @@ func TestUpdateMergesIntoCurrentTakopiTomlAndRestarts(t *testing.T) {
 	if !strings.HasPrefix(script, "#!") {
 		t.Errorf("uploaded provision.sh starts with %.20q", script)
 	}
-	last := f.cmds[len(f.cmds)-1]
-	if last != restartTakopi {
-		t.Errorf("last command %q, want restart", last)
+	if p, r := indexOf(f.cmds, "sudo bash /opt/tg-agent/provision.sh"), indexOf(f.cmds, restartTakopi); p < 0 || r < p {
+		t.Errorf("want provisioning, then restart: %q", f.cmds)
 	}
-	if indexOf(f.cmds, "sudo bash /opt/tg-agent/provision.sh") < 0 {
-		t.Errorf("provisioning did not run: %q", f.cmds)
+}
+
+func TestUpdateReportsPendingReboot(t *testing.T) {
+	var out strings.Builder
+	f := newFake()
+	f.fail["test -e /var/run/reboot-required"] = 1
+	c := &Conn{r: f, out: &out}
+	if err := c.Update(context.Background(), config.Telegram{}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(out.String(), "\nUpdate complete.\n") {
+		t.Errorf("no completion message at the end:\n%s", out.String())
+	}
+	if strings.Contains(out.String(), "reboot") {
+		t.Errorf("reboot hint without pending reboot:\n%s", out.String())
+	}
+	out.Reset()
+	if err := (&Conn{r: newFake(), out: &out}).Update(context.Background(), config.Telegram{}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "tg-agent stop && tg-agent start") {
+		t.Errorf("no reboot hint:\n%s", out.String())
 	}
 }
 
@@ -143,6 +162,24 @@ func TestEnsureClaudeAuth(t *testing.T) {
 			t.Error("restarted Takopi without login")
 		}
 	})
+}
+
+func TestWaitProvisioned(t *testing.T) {
+	f := newFake()
+	if err := conn(f).WaitProvisioned(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if indexOf(f.cmds, "cloud-init status --long") >= 0 {
+		t.Errorf("detailed status printed on success: %q", f.cmds)
+	}
+	f = newFake()
+	f.fail["cloud-init status --wait"] = 1
+	if err := conn(f).WaitProvisioned(context.Background()); err == nil {
+		t.Fatal("expected error")
+	}
+	if indexOf(f.cmds, "cloud-init status --long") < 0 {
+		t.Errorf("no detailed status on failure: %q", f.cmds)
+	}
 }
 
 func TestTakopiStatus(t *testing.T) {

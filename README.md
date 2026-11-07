@@ -39,6 +39,14 @@ Send `/topic <alias> @<branch>` in the forum: Takopi creates a new topic named a
 
 Inside the VM (user `agent`, passwordless sudo, so sessions can install packages themselves): GitHub CLI `gh`, GitLab CLI `glab`, Java + SDKMAN, Node LTS + pnpm, Playwright (Chromium, also on `PATH` as `chromium`), Go, Python + uv, Claude Code, Takopi (systemd service `takopi`, working directory `~/work`).
 
+Provisioning installs from signed apt repositories wherever possible and does not pipe downloaded install scripts into a shell:
+
+- From Ubuntu: Go (newer toolchains required by a `go.mod` are downloaded and checksum-verified by Go itself), Python, pipx.
+- From the vendors' apt repos: `gh` (GitHub), Node.js (NodeSource), and Claude Code (Anthropic, `latest` channel, key fingerprint checked). These are updated by `apt upgrade` during `tg-agent update`, not by `claude update`.
+- `glab` comes as a release `.deb` checked against the release's `checksums.txt`, because GitLab has no apt repo and Ubuntu's version is very old.
+- pnpm and Playwright come from npm, uv and Takopi from PyPI.
+- The one exception is SDKMAN, which is still installed via its install script.
+
 Note: with `qemu:///system` the qemu user (`libvirt-qemu` or `qemu`) must be able to reach the disk in `data_dir` (default `~/.local/share/tg-agent`). `tg-agent start` therefore adds a search-only ACL (`setfacl -m u:libvirt-qemu:x`) to `data_dir` and to each of its parent directories that you own and that others cannot enter, like virt-manager does. If you do not want that, set `data_dir` to e.g. `/var/lib/libvirt/images/tg-agent`.
 
 ## Development

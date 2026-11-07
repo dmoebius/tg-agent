@@ -40,9 +40,11 @@ const (
 func (c *Conn) SSHCommand() string { return c.r.Command() }
 
 // WaitProvisioned blocks until the initial Provisioning (cloud-init) of a
-// new VM has finished; it returns at once on later boots.
+// new VM has finished; it returns at once on later boots. It prints only a
+// progress line, plus cloud-init's detailed status if Provisioning failed.
 func (c *Conn) WaitProvisioned(ctx context.Context) error {
-	if err := c.r.Run(ctx, c.out, nil, "cloud-init status --wait --long"); err != nil {
+	if err := c.r.Run(ctx, c.out, nil, "cloud-init status --wait"); err != nil {
+		_ = c.r.Run(ctx, c.out, nil, "cloud-init status --long")
 		return fmt.Errorf("provisioning failed, see /var/log/cloud-init-output.log in the VM: %w", err)
 	}
 	return nil
@@ -106,7 +108,8 @@ func takopiStatus(out string) string {
 
 // Update pushes tg into the VM's takopi.toml (keeping everything Takopi
 // owns), re-runs Provisioning (which upgrades the system packages and
-// installs or upgrades every tool) and restarts Takopi.
+// installs or upgrades every tool) and restarts Takopi. It tells the user
+// when the VM needs a reboot afterwards.
 func (c *Conn) Update(ctx context.Context, tg config.Telegram) error {
 	current, err := c.r.Output(ctx, "cat ~/.takopi/takopi.toml 2>/dev/null || true")
 	if err != nil {
@@ -134,6 +137,10 @@ func (c *Conn) Update(ctx context.Context, tg config.Telegram) error {
 		if err := c.r.Run(ctx, c.out, in, s.cmd); err != nil {
 			return fmt.Errorf("%s: %w", s.desc, err)
 		}
+	}
+	fmt.Fprintln(c.out, "\nUpdate complete.")
+	if _, err := c.r.Output(ctx, "test -e /var/run/reboot-required"); err == nil {
+		fmt.Fprintln(c.out, "The VM needs a reboot to complete the update (e.g. a new kernel): run `tg-agent stop && tg-agent start`.")
 	}
 	return nil
 }

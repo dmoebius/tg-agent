@@ -174,6 +174,7 @@ func runStart(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
+	fmt.Println("VM starting...")
 	forum, err := checkForum(ctx, m.Cfg.Telegram)
 	if err != nil {
 		return err
@@ -198,6 +199,7 @@ VM is ready. Telegram forum %[1]q, topic %[2]q is connected to Claude inside the
 Ask Claude the first question in %[2]q.
 To register a project ask Claude to checkout the repo, then execute `+"`! cd ~/work/<repo> && takopi init <alias>`"+`,
 then open a topic for it with `+"`/topic <alias> @<branch>`"+`.
+Use `+"`tg-agent status`"+` to get further connection infos.
 `, forum, topic)
 	return nil
 }
@@ -216,7 +218,11 @@ func runStop(cmd *cobra.Command, _ []string) error {
 		fmt.Println("VM is", st)
 		return nil
 	}
-	return m.Stop(ctx)
+	if err := m.Stop(ctx); err != nil {
+		return err
+	}
+	fmt.Println("VM stopped.")
+	return nil
 }
 
 func runStatus(cmd *cobra.Command, _ []string) error {
