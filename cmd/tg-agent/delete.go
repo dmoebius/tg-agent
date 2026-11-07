@@ -26,9 +26,10 @@ kept, so a later "tg-agent start" re-creates the VM on the existing disk.
                cloud-init files) and the libvirt storage pool pointing at it.
                All Projects and Sessions in the VM are lost.
   --wipe-all   additionally removes the config directory
-               %s COMPLETELY, including config.toml with the Telegram bot token
-               and ids; the next "tg-agent start" behaves like a first run,
-               including the Telegram setup.
+               %s COMPLETELY,
+               including config.toml with the Telegram bot token and ids;
+               the next "tg-agent start" behaves like a first run, including
+               the Telegram setup.
 
 Asks for confirmation by typing the VM name; refuses to run without a terminal.`,
 			config.Dir()),
