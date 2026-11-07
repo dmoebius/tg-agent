@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -17,6 +18,8 @@ type fakeVM struct {
 	outputs map[string]string // prefix -> output
 	fail    map[string]int    // prefix -> number of calls that fail
 	calls   map[string]int    // prefix -> calls so far
+	tty     bool              // tty of the last Exec
+	execErr error             // returned by Exec
 }
 
 func newFake() *fakeVM {
@@ -56,6 +59,12 @@ func (f *fakeVM) Output(_ context.Context, cmd string) (string, error) { return 
 func (f *fakeVM) Interactive(_ context.Context, cmd string) error {
 	f.cmds = append(f.cmds, cmd)
 	return nil
+}
+
+func (f *fakeVM) Exec(_ context.Context, tty bool, cmd string) error {
+	f.cmds = append(f.cmds, cmd)
+	f.tty = tty
+	return f.execErr
 }
 
 func (f *fakeVM) Command() string { return "ssh agent@vm" }
@@ -206,4 +215,63 @@ func indexOf(cmds []string, prefix string) int {
 		}
 	}
 	return -1
+}
+
+func TestShellWithoutArgsOpensLoginShell(t *testing.T) {
+	f := newFake()
+	if err := conn(f).Shell(context.Background(), true, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.cmds) != 1 || f.cmds[0] != "" || !f.tty {
+		t.Errorf("cmds = %q, tty = %v", f.cmds, f.tty)
+	}
+}
+
+func TestShellRunsArgsInLoginShell(t *testing.T) {
+	f := newFake()
+	if err := conn(f).Shell(context.Background(), false, []string{"ls", "-la", "a b"}); err != nil {
+		t.Fatal(err)
+	}
+	if want := `bash -lc 'ls -la '\''a b'\'''`; len(f.cmds) != 1 || f.cmds[0] != want || f.tty {
+		t.Errorf("cmds = %q, tty = %v, want %q", f.cmds, f.tty, want)
+	}
+}
+
+// TestShellQuoteSurvivesTwoShells checks that arguments arrive verbatim after
+// the remote shell and then bash -c have parsed the command line, using a
+// local sh in place of both.
+func TestShellQuoteSurvivesTwoShells(t *testing.T) {
+	args := []string{"a b", "", "it's", `"$HOME"`, "`id`", "x;y", "*", `back\slash`, "plain-1.0"}
+	q := make([]string, len(args))
+	for i, a := range args {
+		q[i] = shellQuote(a)
+	}
+	inner := `printf '<%s>' ` + strings.Join(q, " ")
+	out, err := exec.Command("sh", "-c", "sh -c "+shellQuote(inner)).Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "<" + strings.Join(args, "><") + ">"
+	if string(out) != want {
+		t.Errorf("got %s, want %s", out, want)
+	}
+}
+
+type exitStatus int
+
+func (e exitStatus) Error() string { return "exit status" }
+func (e exitStatus) ExitCode() int { return int(e) }
+
+func TestShellReturnsExitCode(t *testing.T) {
+	f := newFake()
+	f.execErr = exitStatus(3)
+	err := conn(f).Shell(context.Background(), false, []string{"false"})
+	var ee *ExitError
+	if !errors.As(err, &ee) || ee.Code != 3 {
+		t.Fatalf("err = %v", err)
+	}
+	f.execErr = errors.New("exec: ssh not found")
+	if err := conn(f).Shell(context.Background(), false, nil); errors.As(err, &ee) || err == nil {
+		t.Fatalf("err = %v", err)
+	}
 }

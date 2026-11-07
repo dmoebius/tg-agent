@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -20,6 +21,10 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	if err := newRootCmd().ExecuteContext(ctx); err != nil {
+		var exit *vm.ExitError
+		if errors.As(err, &exit) {
+			os.Exit(exit.Code)
+		}
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
@@ -37,6 +42,16 @@ func newRootCmd() *cobra.Command {
 		&cobra.Command{Use: "stop", Short: "Shut the VM down", Args: cobra.NoArgs, RunE: runStop},
 		&cobra.Command{Use: "status", Short: "Show VM and Takopi status", Args: cobra.NoArgs, RunE: runStatus},
 		&cobra.Command{Use: "update", Short: "Push Telegram settings, re-run provisioning (install and upgrade tools), restart Takopi", Args: cobra.NoArgs, RunE: runUpdate},
+		&cobra.Command{
+			Use:     "shell [<command> [<args>...]]",
+			Aliases: []string{"sh"},
+			Short:   "Open a login shell in the VM, or run a command there",
+			Long: `Without arguments, opens an interactive login shell in the VM as user agent.
+With arguments, runs <command> <args> in a login shell in the VM and exits with
+its exit code. Everything after "shell" belongs to the remote command, flags too.`,
+			DisableFlagParsing: true,
+			RunE:               runShell,
+		},
 	)
 	return root
 }
@@ -268,4 +283,22 @@ func runUpdate(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	return c.Update(ctx, m.Cfg.Telegram)
+}
+
+func runShell(cmd *cobra.Command, args []string) error {
+	ctx := cmd.Context()
+	m, err := setup(ctx)
+	if err != nil {
+		return err
+	}
+	if st, err := m.State(ctx); err != nil {
+		return err
+	} else if st != vm.Running {
+		return fmt.Errorf("VM is %s; run `tg-agent start` first", st)
+	}
+	c, err := m.Connect(ctx, 0)
+	if err != nil {
+		return err
+	}
+	return c.Shell(ctx, prompt.Interactive(), args)
 }

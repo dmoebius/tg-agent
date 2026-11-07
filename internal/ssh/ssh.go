@@ -36,6 +36,23 @@ func (c Client) Interactive(ctx context.Context, cmd string) error {
 	return e.Run()
 }
 
+// Exec runs cmd (empty: a login shell) with the user's stdin, stdout and
+// stderr. tty requests a TTY (-t), otherwise none is allocated (-T) so pipes
+// stay clean. A non-zero remote exit status is returned as *exec.ExitError.
+func (c Client) Exec(ctx context.Context, tty bool, cmd string) error {
+	flag := "-T"
+	if tty {
+		flag = "-t"
+	}
+	var extra []string
+	if cmd != "" {
+		extra = []string{cmd}
+	}
+	e := exec.CommandContext(ctx, "ssh", append([]string{flag}, c.args(extra...)...)...)
+	e.Stdin, e.Stdout, e.Stderr = os.Stdin, os.Stdout, os.Stderr
+	return e.Run()
+}
+
 func (c Client) Output(ctx context.Context, cmd string) (string, error) {
 	b, err := exec.CommandContext(ctx, "ssh", c.args(cmd)...).CombinedOutput()
 	return string(b), err

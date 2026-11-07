@@ -19,6 +19,7 @@ type runner interface {
 	Run(ctx context.Context, out io.Writer, stdin io.Reader, cmd string) error
 	Output(ctx context.Context, cmd string) (string, error)
 	Interactive(ctx context.Context, cmd string) error
+	Exec(ctx context.Context, tty bool, cmd string) error
 	Command() string
 }
 
@@ -38,6 +39,44 @@ const (
 
 // SSHCommand returns the ssh command line users can paste to log in.
 func (c *Conn) SSHCommand() string { return c.r.Command() }
+
+// ExitError reports the non-zero exit status of a command run by Shell.
+type ExitError struct{ Code int }
+
+func (e *ExitError) Error() string { return fmt.Sprintf("exit status %d", e.Code) }
+
+// Shell opens a login shell in the VM (no args) or runs args there in a
+// login shell, so it sees the same PATH as an interactive login. args are
+// passed verbatim: each one is shell-quoted. tty requests a TTY; use it only
+// when stdin is a terminal. A non-zero exit status is returned as
+// *ExitError.
+func (c *Conn) Shell(ctx context.Context, tty bool, args []string) error {
+	cmd := ""
+	if len(args) > 0 {
+		q := make([]string, len(args))
+		for i, a := range args {
+			q[i] = shellQuote(a)
+		}
+		cmd = "bash -lc " + shellQuote(strings.Join(q, " "))
+	}
+	err := c.r.Exec(ctx, tty, cmd)
+	var ee interface{ ExitCode() int }
+	if errors.As(err, &ee) && ee.ExitCode() > 0 {
+		return &ExitError{Code: ee.ExitCode()}
+	}
+	return err
+}
+
+// shellSafe are the characters a word may consist of to need no quoting.
+const shellSafe = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_./=:,+@%-"
+
+// shellQuote quotes s for a POSIX shell, leaving harmless words readable.
+func shellQuote(s string) string {
+	if s != "" && strings.Trim(s, shellSafe) == "" { // only safe characters
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
 
 // WaitProvisioned blocks until the initial Provisioning (cloud-init) of a
 // new VM has finished; it returns at once on later boots. It prints only a

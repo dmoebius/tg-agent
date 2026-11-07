@@ -12,6 +12,7 @@ inside it and connects the sessions to **one** Telegram bot via
 | `tg-agent stop`   | Shuts the VM down |
 | `tg-agent status` | VM state, IP, Takopi service, SSH command |
 | `tg-agent update` | Merges the Telegram settings into Takopi's config, re-runs the provisioning script (apt upgrade, installs new tools, upgrades Claude, Takopi etc.), restarts Takopi |
+| `tg-agent shell` (`sh`) `[<command> [<args>...]]` | Without arguments: login shell in the VM as `agent`. With arguments: runs the command in a login shell in the VM (stdin/stdout/stderr passed through, TTY only if stdin is a terminal) and exits with its exit code. Arguments are passed verbatim, so remote `~` or `$VAR` must go through a shell: `tg-agent sh bash -c 'cat ~/.takopi/takopi.toml'` |
 
 ## Setup
 
