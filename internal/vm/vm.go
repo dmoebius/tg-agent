@@ -65,11 +65,11 @@ func (m *Manager) State(ctx context.Context) (State, error) {
 	if !hasDomain(names, config.VMName) {
 		return Missing, nil
 	}
-	out, err := m.virsh(ctx, "domstate", config.VMName)
+	ds, err := m.domstate(ctx)
 	if err != nil {
 		return "", err
 	}
-	if strings.TrimSpace(out) == string(Running) {
+	if ds == string(Running) {
 		return Running, nil
 	}
 	return Stopped, nil
@@ -241,22 +241,44 @@ func knowsOSVariant(list, v string) bool {
 
 // Stop shuts the VM down gracefully, forcing it off after 60 seconds.
 func (m *Manager) Stop(ctx context.Context) error {
+	_, err := m.shutdown(ctx, 60*time.Second)
+	return err
+}
+
+// shutdown shuts the running VM down gracefully and forces it off if it is
+// still not shut off after timeout. forced reports whether it had to.
+func (m *Manager) shutdown(ctx context.Context, timeout time.Duration) (forced bool, err error) {
 	if _, err := m.virsh(ctx, "shutdown", config.VMName); err != nil {
-		return err
+		return false, err
 	}
-	for i := 0; i < 60; i++ {
-		st, err := m.State(ctx)
-		if err != nil || st != Running {
-			return err
-		}
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return false, ctx.Err()
 		case <-time.After(time.Second):
 		}
+		// Wait for "shut off", not just "not running": a guest that is
+		// shutting down reports "in shutdown".
+		if ds, err := m.domstate(ctx); err != nil || ds == "shut off" {
+			return false, err
+		}
 	}
-	_, err := m.virsh(ctx, "destroy", config.VMName)
-	return err
+	if _, err := m.virsh(ctx, "destroy", config.VMName); err != nil {
+		// It may have shut off just in time.
+		if ds, err2 := m.domstate(ctx); err2 == nil && ds == "shut off" {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+// domstate returns the domain's raw state ("running", "shut off", "paused",
+// "in shutdown", ...).
+func (m *Manager) domstate(ctx context.Context) (string, error) {
+	out, err := m.virsh(ctx, "domstate", config.VMName)
+	return strings.TrimSpace(out), err
 }
 
 var ipRe = regexp.MustCompile(`(\d+\.\d+\.\d+\.\d+)/\d+`)

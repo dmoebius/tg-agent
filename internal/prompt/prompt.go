@@ -3,8 +3,10 @@ package prompt
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
 
@@ -15,12 +17,48 @@ var in = bufio.NewReader(os.Stdin)
 
 func Interactive() bool { return term.IsTerminal(int(os.Stdin.Fd())) }
 
-func readLine() (string, error) {
-	s, err := in.ReadString('\n')
-	if err != nil && s == "" {
-		return "", err
+// ErrInterrupted is returned by the prompts when the user presses Ctrl-C.
+var ErrInterrupted = errors.New("interrupted")
+
+// interruptible runs the blocking read f and returns ErrInterrupted as soon as
+// Ctrl-C is pressed, instead of waiting for Enter. The terminal state (echo,
+// disabled by Secret) is restored. The abandoned read keeps blocking, so the
+// caller must not prompt again but exit.
+func interruptible(f func() (string, error)) (string, error) {
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt)
+	defer signal.Stop(sig)
+	fd := int(os.Stdin.Fd())
+	st, _ := term.GetState(fd)
+	type result struct {
+		s   string
+		err error
 	}
-	return strings.TrimSpace(s), nil
+	done := make(chan result, 1)
+	go func() {
+		s, err := f()
+		done <- result{s, err}
+	}()
+	select {
+	case r := <-done:
+		return r.s, r.err
+	case <-sig:
+		if st != nil {
+			_ = term.Restore(fd, st)
+		}
+		fmt.Println()
+		return "", ErrInterrupted
+	}
+}
+
+func readLine() (string, error) {
+	return interruptible(func() (string, error) {
+		s, err := in.ReadString('\n')
+		if err != nil && s == "" {
+			return "", err
+		}
+		return strings.TrimSpace(s), nil
+	})
 }
 
 // String asks for a value; empty input keeps def.
@@ -43,9 +81,12 @@ func String(label, def string) (string, error) {
 // Secret asks for a value without echo.
 func Secret(label string) (string, error) {
 	fmt.Printf("%s: ", label)
-	b, err := term.ReadPassword(int(os.Stdin.Fd()))
-	fmt.Println()
-	return strings.TrimSpace(string(b)), err
+	s, err := interruptible(func() (string, error) {
+		b, err := term.ReadPassword(int(os.Stdin.Fd()))
+		fmt.Println()
+		return string(b), err
+	})
+	return strings.TrimSpace(s), err
 }
 
 // Int64 asks until a valid integer is entered (empty keeps def if def != 0).

@@ -10,9 +10,10 @@ inside it and connects the sessions to **one** Telegram bot via
 |---|---|
 | `tg-agent start`  | Creates the VM on first run (download image, cloud-init), starts it, waits for provisioning |
 | `tg-agent stop`   | Shuts the VM down |
-| `tg-agent status` | VM state, IP, Takopi service, SSH command |
+| `tg-agent status` | Config file and `data_dir` paths, Forum link, VM state, IP, Takopi service, SSH command |
 | `tg-agent update` | Merges the Telegram settings into Takopi's config, re-runs the provisioning script (apt upgrade, installs new tools, upgrades Claude, Takopi etc.), restarts Takopi |
 | `tg-agent shell` (`sh`) `[<command> [<args>...]]` | Without arguments: login shell in the VM as `agent`. With arguments: runs the command in a login shell in the VM (stdin/stdout/stderr passed through, TTY only if stdin is a terminal) and exits with its exit code. Arguments are passed verbatim, so remote `~` or `$VAR` must go through a shell: `tg-agent sh bash -c 'cat ~/.takopi/takopi.toml'` |
+| `tg-agent delete [--wipe-disk \| --wipe-all]` | Start over. `delete` shuts the VM down (forced off after 30 s) and removes it from libvirt (`virsh undefine`); disk, `data_dir` and config are kept, so `start` re-creates the VM on the existing disk. `--wipe-disk` also removes `data_dir` (disk, base image, SSH key, cloud-init files) and the libvirt storage pool pointing at it: all Projects and Sessions are lost. `--wipe-all` also removes the whole config directory (`~/.config/tg-agent`, including the bot token), so `start` runs the first-run setup again. Shows what will be destroyed and asks you to type the VM name; refuses without a terminal. Missing parts are skipped, so it also cleans up after a half-failed `start`. The search ACLs added by `start` are kept. |
 
 ## Setup
 

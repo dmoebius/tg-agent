@@ -125,3 +125,13 @@ func (c *Config) Validate() error {
 	}
 	return nil
 }
+
+// Remove deletes the config directory with everything in it, including the
+// config file with the bot token. A missing directory is not an error. It
+// reports whether the directory existed.
+func Remove() (bool, error) {
+	if _, err := os.Stat(Dir()); errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	return true, os.RemoveAll(Dir())
+}
