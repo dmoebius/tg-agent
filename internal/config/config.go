@@ -118,3 +118,20 @@ func (c *Config) Validate() error {
 	}
 	return nil
 }
+
+// Remove deletes the config file and then the config directory if it is
+// empty. Neither existing is not an error. It reports whether the file
+// existed.
+func Remove() (bool, error) {
+	err := os.Remove(Path())
+	existed := err == nil
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return false, err
+	}
+	if des, err := os.ReadDir(Dir()); err == nil && len(des) == 0 {
+		if err := os.Remove(Dir()); err != nil {
+			return existed, err
+		}
+	}
+	return existed, nil
+}

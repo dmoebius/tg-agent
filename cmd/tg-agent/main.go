@@ -52,6 +52,7 @@ its exit code. Everything after "shell" belongs to the remote command, flags too
 			DisableFlagParsing: true,
 			RunE:               runShell,
 		},
+		newDeleteCmd(),
 	)
 	return root
 }

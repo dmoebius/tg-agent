@@ -58,3 +58,35 @@ func TestSaveRoundTrip(t *testing.T) {
 		t.Fatal("perm")
 	}
 }
+
+func TestRemove(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	if existed, err := Remove(); err != nil || existed {
+		t.Fatalf("nothing to remove: existed=%v err=%v", existed, err)
+	}
+	c := &Config{}
+	if err := c.Save(); err != nil {
+		t.Fatal(err)
+	}
+	if existed, err := Remove(); err != nil || !existed {
+		t.Fatalf("existed=%v err=%v", existed, err)
+	}
+	if _, err := os.Stat(Dir()); !os.IsNotExist(err) {
+		t.Fatalf("empty config dir kept: %v", err)
+	}
+
+	// A non-empty directory is kept.
+	if err := c.Save(); err != nil {
+		t.Fatal(err)
+	}
+	other := filepath.Join(Dir(), "other")
+	if err := os.WriteFile(other, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Remove(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(other); err != nil {
+		t.Fatalf("unrelated file removed: %v", err)
+	}
+}
