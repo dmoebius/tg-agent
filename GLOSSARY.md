@@ -49,7 +49,7 @@ The persistent area in the VM that holds all Projects.
 _Avoid_: work dir, home
 
 **Project**:
-A git repository in the Workspace, registered under a short alias so Topics can be bound to it.
+A git repository declared in the Config under a short alias, which tg-agent keeps checked out in the Workspace so Topics can be bound to it.
 _Avoid_: repo, alias
 
 **Binding**:
