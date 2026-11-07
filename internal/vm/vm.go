@@ -64,7 +64,8 @@ func (m *Manager) State(ctx context.Context) (State, error) {
 	return Stopped, nil
 }
 
-// Create downloads the image, prepares the disk and defines + starts the VM.
+// Create downloads the image, prepares the disk (unless one exists already)
+// and defines + starts the VM.
 func (m *Manager) Create(ctx context.Context) error {
 	for _, bin := range []string{"virsh", "virt-install", "qemu-img", "ssh", "ssh-keygen"} {
 		if _, err := exec.LookPath(bin); err != nil {
@@ -79,15 +80,22 @@ func (m *Manager) Create(ctx context.Context) error {
 			return err
 		}
 	}
-	if _, err := os.Stat(m.baseImg()); errors.Is(err, os.ErrNotExist) {
-		fmt.Fprintf(m.Out, "Downloading %s ...\n", m.Cfg.VM.ImageURL)
-		if err := download(ctx, m.Cfg.VM.ImageURL, m.baseImg()); err != nil {
+	// The VM is persistent: an existing disk (e.g. after the domain was
+	// undefined) is reused, never wiped, so the Workspace survives.
+	if _, err := os.Stat(m.disk()); err == nil {
+		fmt.Fprintf(m.Out, "Reusing existing disk %s\n", m.disk())
+	} else if errors.Is(err, os.ErrNotExist) {
+		if _, err := os.Stat(m.baseImg()); errors.Is(err, os.ErrNotExist) {
+			fmt.Fprintf(m.Out, "Downloading %s ...\n", m.Cfg.VM.ImageURL)
+			if err := download(ctx, m.Cfg.VM.ImageURL, m.baseImg()); err != nil {
+				return err
+			}
+		}
+		if _, err := m.run(ctx, "qemu-img", "create", "-f", "qcow2", "-F", "qcow2",
+			"-b", m.baseImg(), m.disk(), fmt.Sprintf("%dG", m.Cfg.VM.DiskGB)); err != nil {
 			return err
 		}
-	}
-	_ = os.Remove(m.disk())
-	if _, err := m.run(ctx, "qemu-img", "create", "-f", "qcow2", "-F", "qcow2",
-		"-b", m.baseImg(), m.disk(), fmt.Sprintf("%dG", m.Cfg.VM.DiskGB)); err != nil {
+	} else {
 		return err
 	}
 	pub, err := os.ReadFile(m.KeyPath() + ".pub")
