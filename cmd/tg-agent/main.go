@@ -16,6 +16,7 @@ import (
 	"github.com/dmoebius/tg-agent/internal/preflight"
 	"github.com/dmoebius/tg-agent/internal/prompt"
 	"github.com/dmoebius/tg-agent/internal/ssh"
+	"github.com/dmoebius/tg-agent/internal/telegram"
 	"github.com/dmoebius/tg-agent/internal/vm"
 )
 
@@ -51,11 +52,15 @@ func setup(ctx context.Context) (*vm.Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-	if cfg.Validate() != nil {
-		if !prompt.Interactive() {
-			return nil, fmt.Errorf("%w (edit %s or run interactively)", cfg.Validate(), config.Path())
+	if err := cfg.Validate(); err != nil {
+		t := cfg.Telegram
+		if t.BotToken != "" && t.ChatID != 0 && len(t.AllowedUserIDs) > 0 {
+			return nil, fmt.Errorf("%w (edit %s)", err, config.Path())
 		}
-		if err := askTelegram(cfg); err != nil {
+		if !prompt.Interactive() {
+			return nil, fmt.Errorf("%w (edit %s or run interactively)", err, config.Path())
+		}
+		if err := askTelegram(ctx, cfg); err != nil {
 			return nil, err
 		}
 		if err := cfg.Save(); err != nil {
@@ -69,36 +74,71 @@ func setup(ctx context.Context) (*vm.Manager, error) {
 	return &vm.Manager{Cfg: cfg, Out: os.Stdout}, nil
 }
 
-func askTelegram(cfg *config.Config) error {
+func askTelegram(ctx context.Context, cfg *config.Config) error {
 	t := &cfg.Telegram
 	fmt.Println(`Telegram setup:
   1. Create a bot with @BotFather and copy its token.
-  2. Create a group, enable "Topics" in its settings, add the bot as admin with "Manage Topics".
-  3. Chat id of the group: forward a group message to @RawDataBot (looks like -100123456789).`)
+  2. Create a group, enable "Topics" in its settings, add the bot as admin with "Manage Topics".`)
 	var err error
 	if t.BotToken == "" {
 		if t.BotToken, err = prompt.Secret("Bot token"); err != nil {
 			return err
 		}
 	}
+	var found telegram.Origin
+	if t.ChatID == 0 || len(t.AllowedUserIDs) == 0 {
+		found = discoverOrigin(ctx, t.BotToken)
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
 	if t.ChatID == 0 {
-		if t.ChatID, err = prompt.Int64("Group chat id", 0); err != nil {
+		fmt.Println("  Chat id of the forum: forward a group message to @RawDataBot (looks like -100123456789).")
+		if t.ChatID, err = prompt.Int64("Forum chat id", found.ChatID); err != nil {
 			return err
 		}
 	}
 	if len(t.AllowedUserIDs) == 0 {
+		def := ""
+		if found.UserID != 0 {
+			def = fmt.Sprint(found.UserID)
+		}
 		for {
-			s, err := prompt.String("Allowed Telegram user ids (comma separated; get yours from @userinfobot)", "")
+			s, err := prompt.String("Allowed Telegram user ids (comma separated; get yours from @userinfobot)", def)
 			if err != nil {
 				return err
 			}
 			if t.AllowedUserIDs, err = prompt.Int64List(s); err == nil && len(t.AllowedUserIDs) > 0 {
 				break
 			}
-			fmt.Println("  at least one valid user id is required (anyone in the group could otherwise control Claude)")
+			fmt.Println("  at least one valid user id is required (anyone in the forum could otherwise control Claude)")
 		}
 	}
 	return cfg.Validate()
+}
+
+// discoverOrigin waits for the user to post in the Forum and returns its chat
+// id and the user's id as defaults for the prompts. Failures are not fatal:
+// the user can still enter both ids manually.
+func discoverOrigin(ctx context.Context, token string) telegram.Origin {
+	tg := telegram.Client{Token: token}
+	name, err := tg.BotUsername(ctx)
+	if err != nil {
+		fmt.Println("  could not verify the bot token:", err)
+		return telegram.Origin{}
+	}
+	fmt.Printf("  3. Now send a message mentioning @%s in any topic of the forum (waiting up to 3 minutes) ...\n", name)
+	dctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
+	defer cancel()
+	o, err := tg.Discover(dctx)
+	if err != nil {
+		if ctx.Err() == nil {
+			fmt.Println("  no message received, please enter the ids manually:", err)
+		}
+		return telegram.Origin{}
+	}
+	fmt.Printf("  Found forum %q (%d), sent by %s (%d)\n", o.ChatTitle, o.ChatID, o.UserName, o.UserID)
+	return o
 }
 
 func sshClient(ctx context.Context, m *vm.Manager) (ssh.Client, error) {
