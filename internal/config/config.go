@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -14,25 +13,10 @@ import (
 
 const VMName = "tg-agent"
 
-// WorkspaceDir is the persistent directory in the VM that holds all Projects.
-const WorkspaceDir = "/home/agent/work"
-
 type Config struct {
-	Telegram Telegram  `toml:"telegram"`
-	VM       VM        `toml:"vm"`
-	Projects []Project `toml:"projects"`
+	Telegram Telegram `toml:"telegram"`
+	VM       VM       `toml:"vm"`
 }
-
-// Project is a git repository that tg-agent clones into the Workspace and
-// registers with Takopi under Alias, so Topics can be bound to it.
-type Project struct {
-	Alias        string `toml:"alias"`
-	URL          string `toml:"url"`
-	WorktreeBase string `toml:"worktree_base,omitempty"` // base branch for new worktrees
-}
-
-// Dir is the Project's checkout in the VM.
-func (p Project) Dir() string { return WorkspaceDir + "/" + p.Alias }
 
 type Telegram struct {
 	BotToken       string  `toml:"bot_token"`
@@ -122,8 +106,6 @@ func (c *Config) applyDefaults() {
 	}
 }
 
-var aliasRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
-
 func (c *Config) Validate() error {
 	if c.Telegram.BotToken == "" {
 		return errors.New("telegram.bot_token is not set")
@@ -134,50 +116,5 @@ func (c *Config) Validate() error {
 	if len(c.Telegram.AllowedUserIDs) == 0 {
 		return errors.New("telegram.allowed_user_ids is empty (anyone in the forum could control Claude)")
 	}
-	seen := map[string]bool{}
-	for i, p := range c.Projects {
-		if !aliasRe.MatchString(p.Alias) {
-			return fmt.Errorf("projects[%d].alias %q is invalid (letters, digits, '-' and '_' only)", i, p.Alias)
-		}
-		if seen[p.Alias] {
-			return fmt.Errorf("projects[%d].alias %q is not unique", i, p.Alias)
-		}
-		seen[p.Alias] = true
-		if p.URL == "" {
-			return fmt.Errorf("projects[%d].url is not set", i)
-		}
-	}
 	return nil
-}
-
-// TakopiTOML renders ~/.takopi/takopi.toml for the VM (one Session per Topic,
-// each Topic bound to a Project and branch worktree).
-func (c *Config) TakopiTOML() string {
-	ids := make([]string, len(c.Telegram.AllowedUserIDs))
-	for i, id := range c.Telegram.AllowedUserIDs {
-		ids[i] = fmt.Sprint(id)
-	}
-	var b strings.Builder
-	fmt.Fprintf(&b, `transport = "telegram"
-default_engine = "claude"
-watch_config = true
-
-[transports.telegram]
-bot_token = %q
-chat_id = %d
-allowed_user_ids = [%s]
-session_mode = "chat"
-show_resume_line = false
-
-[transports.telegram.topics]
-enabled = true
-scope = "main"
-`, c.Telegram.BotToken, c.Telegram.ChatID, strings.Join(ids, ", "))
-	for _, p := range c.Projects {
-		fmt.Fprintf(&b, "\n[projects.%q]\npath = %q\nworktrees_dir = \".worktrees\"\n", p.Alias, p.Dir())
-		if p.WorktreeBase != "" {
-			fmt.Fprintf(&b, "worktree_base = %q\n", p.WorktreeBase)
-		}
-	}
-	return b.String()
 }

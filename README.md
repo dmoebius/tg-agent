@@ -8,10 +8,10 @@ inside it and connects the sessions to **one** Telegram bot via
 
 | Command | Effect |
 |---|---|
-| `tg-agent start`  | Creates the VM on first run (download image, cloud-init), starts it, waits for provisioning, clones missing projects |
+| `tg-agent start`  | Creates the VM on first run (download image, cloud-init), starts it, waits for provisioning |
 | `tg-agent stop`   | Shuts the VM down |
 | `tg-agent status` | VM state, IP, Takopi service, SSH command |
-| `tg-agent update` | Pushes the config into the VM, runs apt upgrade, re-runs the provisioning script (installs new tools, upgrades Claude, Takopi etc.), clones missing projects, restarts Takopi |
+| `tg-agent update` | Merges the Telegram settings into Takopi's config, runs apt upgrade, re-runs the provisioning script (installs new tools, upgrades Claude, Takopi etc.), restarts Takopi |
 
 ## Setup
 
@@ -24,18 +24,18 @@ The VM is persistent: stopping, starting and updating keep everything in it, inc
 
 ### Projects and topics
 
-Takopi runs in topic mode: every forum topic is bound to one project and branch and keeps its own Claude session, which survives VM restarts. Declare the projects in `config.toml`:
+Takopi runs in topic mode: every forum topic is bound to one project and branch and keeps its own Claude session, which survives VM restarts.
 
-```toml
-[[projects]]
-alias = "tg-agent"                                   # used in /topic
-url = "git@github.com:dmoebius/tg-agent.git"
-worktree_base = "main"                               # optional: base branch for new worktrees
-```
+Projects are registered with Takopi inside the VM, not in `config.toml`. Either do it via SSH (`tg-agent status` prints the command) or simply ask Claude in any topic:
 
-`tg-agent start` / `tg-agent update` clone missing projects into `~/work/<alias>` (existing checkouts are never touched) and register them with Takopi; each `@branch` gets its own worktree under `~/work/<alias>/.worktrees/`. Private repositories need git credentials in the VM: log in once via the SSH command from `tg-agent status` with `gh auth login` / `glab auth login` (both also set up git over HTTPS) or add an SSH key. The project list is owned by `config.toml`: projects added in the VM with `takopi init` are overwritten by the next `tg-agent update`.
+    git clone git@github.com:you/foo.git ~/work/foo
+    cd ~/work/foo && takopi init foo
 
-In a topic, bind it with `/topic <alias> @<branch>`; `/ctx` shows the binding, `/new` resets the topic's session.
+`takopi init` uses `.worktrees` for branch worktrees and the repo's default branch as their base. Takopi picks up the change immediately (`watch_config`). Private repositories need git credentials in the VM: log in once with `gh auth login` / `glab auth login` or add an SSH key.
+
+`tg-agent update` only merges its own keys (bot token, chat ID, allowed users, topic mode) into `~/.takopi/takopi.toml`; projects and other Takopi settings are kept.
+
+Send `/topic <alias> @<branch>` in the forum: Takopi creates a new topic named after it and binds it. A topic you create by hand in Telegram stays unbound until you send `/ctx set <alias> @<branch>` in it. `/ctx` shows the binding, `/new` resets the topic's session.
 
 Inside the VM (user `agent`, passwordless sudo, so sessions can install packages themselves): GitHub CLI `gh`, GitLab CLI `glab`, Java + SDKMAN, Node LTS + pnpm, Playwright (Chromium), Go, Python + uv, Claude Code, Takopi (systemd service `takopi`, working directory `~/work`).
 

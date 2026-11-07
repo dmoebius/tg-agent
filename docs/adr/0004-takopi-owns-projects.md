@@ -1,0 +1,3 @@
+# Takopi owns the Project list; tg-agent only merges Telegram settings
+
+Supersedes ADR-0003. Projects are registered inside the VM with `takopi init` (by the user via SSH or by an Agent on request from a Topic) and live in Takopi's `takopi.toml`, next to Takopi's Bindings and Sessions. tg-agent no longer declares Projects in the Config; on Update it merges only the keys it owns (Telegram credentials, Allowed Users, topic mode) into the existing `takopi.toml`. Declaring Projects on the Host made adding one a Host-only, minutes-long Update, and the reproducibility it bought is moot because the VM is persistent.

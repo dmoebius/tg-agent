@@ -9,7 +9,10 @@ import (
 )
 
 func TestUserDataIsValidCloudConfig(t *testing.T) {
-	ud := UserData(&config.Config{}, "ssh-ed25519 AAAA test")
+	ud, err := UserData(&config.Config{}, "ssh-ed25519 AAAA test")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !strings.HasPrefix(ud, "#cloud-config\n") {
 		t.Fatal("missing header")
 	}

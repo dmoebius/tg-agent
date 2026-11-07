@@ -104,7 +104,11 @@ func (m *Manager) Create(ctx context.Context) error {
 	}
 	ud := filepath.Join(m.dir(), "user-data")
 	md := filepath.Join(m.dir(), "meta-data")
-	if err := os.WriteFile(ud, []byte(provision.UserData(m.Cfg, string(pub))), 0o600); err != nil {
+	userData, err := provision.UserData(m.Cfg, string(pub))
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(ud, []byte(userData), 0o600); err != nil {
 		return err
 	}
 	if err := os.WriteFile(md, []byte("instance-id: "+config.VMName+"\n"), 0o600); err != nil {
