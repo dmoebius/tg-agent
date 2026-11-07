@@ -20,8 +20,7 @@ func newDeleteCmd() *cobra.Command {
 		Short: "Remove the VM, optionally its disk and the config, to start over",
 		Long: `Removes the VM instance: shuts it down (forcing it off after 30 seconds) and
 removes it from libvirt (virsh undefine). The disk, data_dir and config are
-kept, so a later
-"tg-agent start" re-creates the VM on the existing disk.
+kept, so a later "tg-agent start" re-creates the VM on the existing disk.
 
   --wipe-disk  additionally removes data_dir (disk, base image, SSH key,
                cloud-init files) and the libvirt storage pool pointing at it.
