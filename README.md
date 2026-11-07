@@ -33,11 +33,11 @@ url = "git@github.com:dmoebius/tg-agent.git"
 worktree_base = "main"                               # optional: base branch for new worktrees
 ```
 
-`tg-agent start` / `tg-agent update` clone missing projects into `~/work/<alias>` (existing checkouts are never touched) and register them with Takopi; each `@branch` gets its own worktree under `~/work/<alias>/.worktrees/`. Private repositories need git credentials in the VM (e.g. an SSH key or `gh auth login` via the SSH command from `tg-agent status`). The project list is owned by `config.toml`: projects added in the VM with `takopi init` are overwritten by the next `tg-agent update`.
+`tg-agent start` / `tg-agent update` clone missing projects into `~/work/<alias>` (existing checkouts are never touched) and register them with Takopi; each `@branch` gets its own worktree under `~/work/<alias>/.worktrees/`. Private repositories need git credentials in the VM: log in once via the SSH command from `tg-agent status` with `gh auth login` / `glab auth login` (both also set up git over HTTPS) or add an SSH key. The project list is owned by `config.toml`: projects added in the VM with `takopi init` are overwritten by the next `tg-agent update`.
 
 In a topic, bind it with `/topic <alias> @<branch>`; `/ctx` shows the binding, `/new` resets the topic's session.
 
-Inside the VM (user `agent`, passwordless sudo, so sessions can install packages themselves): Java + SDKMAN, Node LTS + pnpm, Playwright (Chromium), Go, Python + uv, Claude Code, Takopi (systemd service `takopi`, working directory `~/work`).
+Inside the VM (user `agent`, passwordless sudo, so sessions can install packages themselves): GitHub CLI `gh`, GitLab CLI `glab`, Java + SDKMAN, Node LTS + pnpm, Playwright (Chromium), Go, Python + uv, Claude Code, Takopi (systemd service `takopi`, working directory `~/work`).
 
 Note: with `qemu:///system` the qemu user needs read access to `data_dir` (default `~/.local/share/tg-agent`); if necessary, move `data_dir` to `/var/lib/libvirt/images/tg-agent`.
 

@@ -12,6 +12,25 @@ apt-get update
 apt-get install -y build-essential git curl wget unzip zip jq ca-certificates \
   python3 python3-venv python3-pip pipx
 
+# GitHub CLI (official apt repo; upgraded by apt)
+install -d -m 755 /etc/apt/keyrings
+curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o /etc/apt/keyrings/githubcli-archive-keyring.gpg
+chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+  >/etc/apt/sources.list.d/github-cli.list
+apt-get update
+apt-get install -y gh
+
+# GitLab CLI (latest .deb from the GitLab release; installed only when newer)
+GLAB=$(curl -fsSL 'https://gitlab.com/api/v4/projects/gitlab-org%2Fcli/releases/permalink/latest')
+GLABV=$(jq -r '.tag_name | ltrimstr("v")' <<<"$GLAB")
+if [ "$(dpkg-query -W -f='${Version}' glab 2>/dev/null || true)" != "$GLABV" ]; then
+  GLABDEB=$(mktemp --suffix=.deb) && chmod 644 "$GLABDEB"
+  curl -fsSL -o "$GLABDEB" "$(jq -r '.assets.links[] | select(.name | endswith("_linux_amd64.deb")) | .url' <<<"$GLAB")"
+  apt-get install -y "$GLABDEB"
+  rm -f "$GLABDEB"
+fi
+
 # Node.js LTS + pnpm
 curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
 apt-get install -y nodejs
