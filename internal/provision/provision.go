@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/dmoebius/tg-agent/internal/config"
+	"github.com/dmoebius/tg-agent/internal/takopi"
 )
 
 //go:embed provision.sh
@@ -19,7 +20,11 @@ func Script() string { return script }
 func b64(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) }
 
 // UserData renders cloud-init user-data. The heavy lifting is done by provision.sh.
-func UserData(c *config.Config, sshPubKey string) string {
+func UserData(c *config.Config, sshPubKey string) (string, error) {
+	tk, err := takopi.Merge("", c.Telegram)
+	if err != nil {
+		return "", err
+	}
 	var b strings.Builder
 	fmt.Fprintf(&b, `#cloud-config
 hostname: %s
@@ -40,6 +45,6 @@ write_files:
     content: %s
 runcmd:
   - [bash, /opt/tg-agent/provision.sh]
-`, config.VMName, strings.TrimSpace(sshPubKey), b64(c.TakopiTOML()), b64(script))
-	return b.String()
+`, config.VMName, strings.TrimSpace(sshPubKey), b64(tk), b64(script))
+	return b.String(), nil
 }
