@@ -25,6 +25,9 @@ func main() {
 		if errors.As(err, &exit) {
 			os.Exit(exit.Code)
 		}
+		if errors.Is(err, prompt.ErrInterrupted) {
+			os.Exit(130) // like a shell after Ctrl-C
+		}
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}

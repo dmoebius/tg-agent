@@ -19,7 +19,8 @@ func newDeleteCmd() *cobra.Command {
 		Use:   "delete [--wipe-disk | --wipe-all]",
 		Short: "Remove the VM, optionally its disk and the config, to start over",
 		Long: `Removes the VM instance: shuts it down (forcing it off after 30 seconds) and
-undefines it. The disk, data_dir and config are kept, so a later
+removes it from libvirt (virsh undefine). The disk, data_dir and config are
+kept, so a later
 "tg-agent start" re-creates the VM on the existing disk.
 
   --wipe-disk  additionally removes data_dir (disk, base image, SSH key,
@@ -97,7 +98,7 @@ func printDeletePlan(inv *vm.Inventory, wipeDisk, wipeConfig, cfgExists bool) {
 	if inv.State == vm.Missing {
 		fmt.Printf("  VM %s: not defined, nothing to do\n", config.VMName)
 	} else {
-		fmt.Printf("  VM %s (%s): shut down (forced off after 30s) and undefined\n", config.VMName, inv.State)
+		fmt.Printf("  VM %s (%s): shut down (forced off after 30s) and removed from libvirt (virsh undefine)\n", config.VMName, inv.State)
 	}
 	if wipeDisk {
 		if inv.DataDirExists {

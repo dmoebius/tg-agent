@@ -150,7 +150,7 @@ func (m *Manager) deleteDomain(ctx context.Context) error {
 	if _, err := m.virsh(ctx, "undefine", "--nvram", config.VMName); err != nil {
 		return err
 	}
-	fmt.Fprintln(m.Out, "VM undefined.")
+	fmt.Fprintln(m.Out, "VM removed from libvirt.")
 	return nil
 }
 
