@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dmoebius/tg-agent/internal/config"
 	"github.com/dmoebius/tg-agent/internal/provision"
@@ -67,15 +69,44 @@ func (c *Conn) EnsureClaudeAuth(ctx context.Context, interactive bool) error {
 	return err
 }
 
-// TakopiStatus returns the state of the Takopi service (e.g. "active").
+// TakopiStatus returns the state of the Takopi service, e.g. "active (for
+// 2h5m0s)". A crashing service is "active" for a few seconds between
+// restarts, so it only counts as healthy once it has been up for a while;
+// otherwise the number of restarts is included.
 func (c *Conn) TakopiStatus(ctx context.Context) string {
-	out, _ := c.r.Output(ctx, "systemctl is-active takopi")
-	return strings.TrimSpace(out)
+	out, _ := c.r.Output(ctx, "systemctl show takopi -p ActiveState -p NRestarts -p ActiveEnterTimestampMonotonic; cat /proc/uptime")
+	return takopiStatus(out)
+}
+
+func takopiStatus(out string) string {
+	props := map[string]string{}
+	var uptime float64
+	for _, l := range strings.Split(out, "\n") {
+		l = strings.TrimSpace(l)
+		if k, v, ok := strings.Cut(l, "="); ok {
+			props[k] = v
+		} else if f := strings.Fields(l); len(f) == 2 {
+			uptime, _ = strconv.ParseFloat(f[0], 64)
+		}
+	}
+	state := props["ActiveState"]
+	if state == "" {
+		return "unknown"
+	}
+	enteredUS, _ := strconv.ParseFloat(props["ActiveEnterTimestampMonotonic"], 64)
+	up := time.Duration(uptime-enteredUS/1e6) * time.Second
+	if state == "active" && enteredUS > 0 && up >= 30*time.Second {
+		return fmt.Sprintf("active (for %s)", up)
+	}
+	if n := props["NRestarts"]; n != "" && n != "0" {
+		state += fmt.Sprintf(" (restarted %s times, see `sudo journalctl -u takopi`)", n)
+	}
+	return state
 }
 
 // Update pushes tg into the VM's takopi.toml (keeping everything Takopi
-// owns), upgrades the system packages, re-runs Provisioning (which installs
-// or upgrades every tool) and restarts Takopi.
+// owns), re-runs Provisioning (which upgrades the system packages and
+// installs or upgrades every tool) and restarts Takopi.
 func (c *Conn) Update(ctx context.Context, tg config.Telegram) error {
 	current, err := c.r.Output(ctx, "cat ~/.takopi/takopi.toml 2>/dev/null || true")
 	if err != nil {
@@ -91,7 +122,6 @@ func (c *Conn) Update(ctx context.Context, tg config.Telegram) error {
 		steps = append(steps, step{"upload " + f.Path, upload(f), f.Content})
 	}
 	steps = append(steps,
-		step{"apt", "sudo DEBIAN_FRONTEND=noninteractive apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get -y upgrade", ""},
 		step{"provision", "sudo " + provision.Command, ""},
 		step{"restart", restartTakopi, ""},
 	)

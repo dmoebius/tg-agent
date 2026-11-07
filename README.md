@@ -11,13 +11,13 @@ inside it and connects the sessions to **one** Telegram bot via
 | `tg-agent start`  | Creates the VM on first run (download image, cloud-init), starts it, waits for provisioning |
 | `tg-agent stop`   | Shuts the VM down |
 | `tg-agent status` | VM state, IP, Takopi service, SSH command |
-| `tg-agent update` | Merges the Telegram settings into Takopi's config, runs apt upgrade, re-runs the provisioning script (installs new tools, upgrades Claude, Takopi etc.), restarts Takopi |
+| `tg-agent update` | Merges the Telegram settings into Takopi's config, re-runs the provisioning script (apt upgrade, installs new tools, upgrades Claude, Takopi etc.), restarts Takopi |
 
 ## Setup
 
 Prerequisites (checked on start, including install hints): `virsh`, `virt-install`, `qemu-img`, `ssh`, running libvirtd with network `default`, `/dev/kvm`.
 
-1. On first run, `tg-agent start` interactively asks for the bot token, then asks you to post a message mentioning the bot in the forum; from that message it detects the forum chat ID and your Telegram user ID and offers them as defaults (manual entry works too). At least one allowed user ID is required. Everything is stored in `~/.config/tg-agent/config.toml` (0600). Beforehand: create a bot via @BotFather, create a group with Topics enabled, add the bot as admin with "Manage Topics".
+1. On first run, `tg-agent start` interactively asks for the bot token, then asks you to post a message mentioning the bot in the forum; from that message it detects the forum chat ID and your Telegram user ID and offers them as defaults (manual entry works too). At least one allowed user ID is required. Everything is stored in `~/.config/tg-agent/config.toml` (0600). Beforehand: create a bot via @BotFather and a group with Topics enabled. The setup then prints a link (`https://t.me/<bot>?startgroup=true&admin=manage_topics`) that adds the bot to the group as admin with just "Manage Topics" (a bot cannot promote itself). `start` and `update` verify this right, because Takopi refuses to run without it; interactively they wait until it is granted.
 2. It then creates the VM (takes a few minutes the first time) and interactively runs `claude auth login --claudeai` in the VM (Claude subscription).
 
 The VM is persistent: stopping, starting and updating keep everything in it, including `~/work`. If the libvirt domain disappears, `tg-agent start` redefines it on top of the existing disk.

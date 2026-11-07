@@ -75,7 +75,7 @@ func askTelegram(ctx context.Context, cfg *config.Config) error {
 	fmt.Println(`Telegram setup:
   1. Open https://web.telegram.org/ and chat with @BotFather, write message "/newbot"
      and follow instructions. Remember the bot token.
-  2. Create a group, enable "Topics" in its settings, add the bot as admin with "Manage Topics".`)
+  2. Create a group and enable "Topics" in its settings.`)
 	var err error
 	if t.BotToken == "" {
 		fmt.Println("  3. After that, enter the bot token here:")
@@ -125,7 +125,10 @@ func discoverOrigin(ctx context.Context, token string) telegram.Origin {
 		fmt.Println("  could not verify the bot token:", err)
 		return telegram.Origin{}
 	}
-	fmt.Printf("  4. Now send a message mentioning @%s in any topic of the forum (waiting up to 3 minutes) ...\n", name)
+	fmt.Printf(`  4. Add the bot to the group as administrator: open %s,
+     pick the group and confirm ("Manage Topics" is the only right it needs).
+  5. Now send a message mentioning @%s in any topic of the forum (waiting up to 3 minutes) ...
+`, telegram.AdminLink(name), name)
 	dctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
 	o, err := tg.Discover(dctx)
@@ -139,9 +142,39 @@ func discoverOrigin(ctx context.Context, token string) telegram.Origin {
 	return o
 }
 
+// checkForum verifies the bot may manage Topics in the Forum (Takopi refuses
+// to start otherwise) and returns the Forum's title. Interactively it waits
+// for the user to fix the bot's rights instead of failing.
+func checkForum(ctx context.Context, t config.Telegram) (string, error) {
+	tg := telegram.Client{Token: t.BotToken}
+	title, err := tg.CheckForum(ctx, t.ChatID)
+	if err == nil || !prompt.Interactive() {
+		return title, err
+	}
+	fmt.Println(err)
+	fmt.Println("Waiting until this is fixed (up to 10 minutes, Ctrl-C to abort) ...")
+	deadline := time.Now().Add(10 * time.Minute)
+	for time.Now().Before(deadline) {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-time.After(5 * time.Second):
+		}
+		if title, err = tg.CheckForum(ctx, t.ChatID); err == nil {
+			fmt.Println("Bot rights OK.")
+			return title, nil
+		}
+	}
+	return "", err
+}
+
 func runStart(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 	m, err := setup(ctx)
+	if err != nil {
+		return err
+	}
+	forum, err := checkForum(ctx, m.Cfg.Telegram)
 	if err != nil {
 		return err
 	}
@@ -159,8 +192,13 @@ func runStart(cmd *cobra.Command, _ []string) error {
 	if err := c.EnsureClaudeAuth(ctx, prompt.Interactive()); err != nil {
 		return err
 	}
-	fmt.Println("Ready. Register a project in the VM (`cd ~/work/<repo> && takopi init <alias>`, or ask Claude in the forum to do it),")
-	fmt.Println("then open a topic for it with `/topic <alias> @<branch>`.")
+	const topic = "General"
+	fmt.Printf(`
+VM is ready. Telegram forum %[1]q, topic %[2]q is connected to Claude inside the VM.
+Ask Claude the first question in %[2]q.
+To register a project ask Claude to checkout the repo, then execute `+"`! cd ~/work/<repo> && takopi init <alias>`"+`,
+then open a topic for it with `+"`/topic <alias> @<branch>`"+`.
+`, forum, topic)
 	return nil
 }
 
@@ -191,6 +229,7 @@ func runStatus(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
+	fmt.Println("Forum:  ", telegram.ForumWebLink(m.Cfg.Telegram.ChatID))
 	fmt.Println("VM:     ", st)
 	if st != vm.Running {
 		return nil
@@ -214,6 +253,9 @@ func runUpdate(cmd *cobra.Command, _ []string) error {
 	}
 	if st, err := m.State(ctx); err != nil || st != vm.Running {
 		return fmt.Errorf("VM must be running (state=%v, err=%v); run `tg-agent start`", st, err)
+	}
+	if _, err := checkForum(ctx, m.Cfg.Telegram); err != nil {
+		return err
 	}
 	c, err := m.Connect(ctx, 0)
 	if err != nil {

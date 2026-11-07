@@ -88,16 +88,16 @@ func TestUpdateMergesIntoCurrentTakopiTomlAndRestarts(t *testing.T) {
 	if last != restartTakopi {
 		t.Errorf("last command %q, want restart", last)
 	}
-	if i, j := indexOf(f.cmds, "sudo bash /opt/tg-agent/provision.sh"), indexOf(f.cmds, "sudo DEBIAN"); i < 0 || j < 0 || j > i {
-		t.Errorf("want apt before provision, got %q", f.cmds)
+	if indexOf(f.cmds, "sudo bash /opt/tg-agent/provision.sh") < 0 {
+		t.Errorf("provisioning did not run: %q", f.cmds)
 	}
 }
 
 func TestUpdateStopsAtFirstFailingStep(t *testing.T) {
 	f := newFake()
-	f.fail["sudo DEBIAN"] = 1
+	f.fail["sudo bash /opt/tg-agent/provision.sh"] = 1
 	err := conn(f).Update(context.Background(), config.Telegram{})
-	if err == nil || !strings.HasPrefix(err.Error(), "apt:") {
+	if err == nil || !strings.HasPrefix(err.Error(), "provision:") {
 		t.Fatalf("err = %v", err)
 	}
 	if indexOf(f.cmds, restartTakopi) >= 0 {
@@ -146,10 +146,19 @@ func TestEnsureClaudeAuth(t *testing.T) {
 }
 
 func TestTakopiStatus(t *testing.T) {
-	f := newFake()
-	f.outputs["systemctl is-active takopi"] = "active\n"
-	if got := conn(f).TakopiStatus(context.Background()); got != "active" {
-		t.Fatalf("got %q", got)
+	cases := []struct{ out, want string }{
+		// Up for 2 hours: healthy, old restarts are irrelevant.
+		{"ActiveState=active\nNRestarts=210\nActiveEnterTimestampMonotonic=100000000\n7300.50 1000.00\n", "active (for 2h0m0s)"},
+		// Just (re)started after crashes: may be a crash loop.
+		{"ActiveState=active\nNRestarts=106\nActiveEnterTimestampMonotonic=7295000000\n7300.50 1000.00\n", "active (restarted 106 times"},
+		{"ActiveState=activating\nNRestarts=106\nActiveEnterTimestampMonotonic=0\n7300.50 1000.00\n", "activating (restarted 106 times"},
+		{"ActiveState=active\nNRestarts=0\nActiveEnterTimestampMonotonic=7295000000\n7300.50 1000.00\n", "active"},
+		{"", "unknown"},
+	}
+	for _, tc := range cases {
+		if got := takopiStatus(tc.out); !strings.HasPrefix(got, tc.want) || (tc.want == "active" && got != "active") {
+			t.Errorf("takopiStatus(%q) = %q, want prefix %q", tc.out, got, tc.want)
+		}
 	}
 }
 

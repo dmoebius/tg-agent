@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -63,5 +64,52 @@ func TestAPIError(t *testing.T) {
 	_, err := Client{Token: "bad", BaseURL: srv.URL}.BotUsername(context.Background())
 	if err == nil || err.Error() != "telegram getMe: Unauthorized" {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestCheckForum(t *testing.T) {
+	cases := []struct {
+		name, chat, member, wantErr string
+	}{
+		{"ok", `{"id":-100,"type":"supergroup","is_forum":true,"title":"Agents"}`, `{"status":"administrator","can_manage_topics":true}`, ""},
+		{"no topics", `{"id":-100,"type":"supergroup","is_forum":false,"title":"Agents"}`, `{"status":"administrator","can_manage_topics":true}`, "has no topics"},
+		{"member", `{"id":-100,"type":"supergroup","is_forum":true,"title":"Agents"}`, `{"status":"member"}`, "is member in forum"},
+		{"admin without topics right", `{"id":-100,"type":"supergroup","is_forum":true,"title":"Agents"}`, `{"status":"administrator","can_manage_topics":false}`, "Manage Topics"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/botTOKEN/getMe":
+					fmt.Fprint(w, `{"ok":true,"result":{"id":7,"is_bot":true,"username":"tgbot"}}`)
+				case "/botTOKEN/getChat":
+					fmt.Fprintf(w, `{"ok":true,"result":%s}`, tc.chat)
+				case "/botTOKEN/getChatMember":
+					if r.URL.Query().Get("user_id") != "7" || r.URL.Query().Get("chat_id") != "-100" {
+						t.Errorf("query %v", r.URL.Query())
+					}
+					fmt.Fprintf(w, `{"ok":true,"result":%s}`, tc.member)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer srv.Close()
+			title, err := Client{Token: "TOKEN", BaseURL: srv.URL}.CheckForum(context.Background(), -100)
+			if tc.wantErr == "" {
+				if err != nil || title != "Agents" {
+					t.Fatalf("got %q, %v", title, err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("err = %v, want %q", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestForumWebLink(t *testing.T) {
+	if got, want := ForumWebLink(-1004345384073), "https://web.telegram.org/a/#-1004345384073_1"; got != want {
+		t.Fatalf("got %q, want %q", got, want)
 	}
 }

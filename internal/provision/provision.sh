@@ -1,14 +1,23 @@
 #!/bin/bash
 # Provisioning: runs as root, first via cloud-init and again on every
-# `tg-agent update`. Must stay idempotent: installs missing tools and
-# upgrades existing ones. Expects /opt/tg-agent/takopi.toml.
+# `tg-agent update`. Must stay idempotent: upgrades the system packages,
+# installs missing tools and upgrades existing ones. Expects /opt/tg-agent/takopi.toml.
 set -euxo pipefail
-export DEBIAN_FRONTEND=noninteractive
+# Never ask: a prompt would hang `tg-agent update` / cloud-init without any
+# visible reason. debconf takes its defaults, ucf and dpkg keep locally
+# changed config files, needrestart restarts services automatically.
+export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a UCF_FORCE_CONFFOLD=1
+cat >/etc/apt/apt.conf.d/90tg-agent <<'EOT'
+APT::Get::Assume-Yes "true";
+Dpkg::Options { "--force-confdef"; "--force-confold"; };
+EOT
 A=agent
 H=/home/$A
 as_agent() { sudo -u $A -H bash -lc "$1"; }
 
+# Upgrade the system first (security updates).
 apt-get update
+apt-get upgrade
 apt-get install -y build-essential git curl wget unzip zip jq ca-certificates \
   python3 python3-venv python3-pip pipx
 

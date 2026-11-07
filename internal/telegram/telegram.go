@@ -134,3 +134,51 @@ func (c Client) Discover(ctx context.Context) (Origin, error) {
 		}
 	}
 }
+
+// CheckForum verifies that chatID is a Forum in which the bot is an
+// administrator allowed to manage Topics, which Takopi requires; Takopi exits
+// at startup otherwise. It returns the Forum's title.
+func (c Client) CheckForum(ctx context.Context, chatID int64) (string, error) {
+	var me user
+	if err := c.call(ctx, "getMe", nil, &me); err != nil {
+		return "", err
+	}
+	id := url.Values{"chat_id": {strconv.FormatInt(chatID, 10)}}
+	var ch chat
+	if err := c.call(ctx, "getChat", id, &ch); err != nil {
+		return "", err
+	}
+	if !ch.IsForum {
+		return "", fmt.Errorf("Telegram group %q (%d) has no topics: enable \"Topics\" in the group settings", ch.Title, chatID)
+	}
+	q := url.Values{"chat_id": id["chat_id"], "user_id": {strconv.FormatInt(me.ID, 10)}}
+	var m struct {
+		Status          string `json:"status"`
+		CanManageTopics bool   `json:"can_manage_topics"`
+	}
+	if err := c.call(ctx, "getChatMember", q, &m); err != nil {
+		return "", err
+	}
+	if m.Status != "administrator" || !m.CanManageTopics {
+		return "", fmt.Errorf("bot @%s is %s in forum %q but must be an administrator with \"Manage Topics\": "+
+			"open %s and pick the forum, or in the group settings open Administrators, add @%s and enable \"Manage Topics\"",
+			me.Username, m.Status, ch.Title, AdminLink(me.Username), me.Username)
+	}
+	return ch.Title, nil
+}
+
+// AdminLink returns a link that adds the bot to a group of the user's choice
+// as administrator with only the "Manage Topics" right preselected. A bot
+// cannot promote itself, so this is as far as tg-agent can automate it.
+func AdminLink(bot string) string {
+	return "https://t.me/" + bot + "?startgroup=true&admin=manage_topics"
+}
+
+// generalTopicID is the message thread id of a Forum's General topic.
+const generalTopicID = 1
+
+// ForumWebLink returns a Telegram Web link that opens the Forum's General
+// topic (Web A addresses topics as #<chat_id>_<thread_id>).
+func ForumWebLink(chatID int64) string {
+	return fmt.Sprintf("https://web.telegram.org/a/#%d_%d", chatID, generalTopicID)
+}
