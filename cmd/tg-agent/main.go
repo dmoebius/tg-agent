@@ -15,6 +15,7 @@ import (
 	"github.com/dmoebius/tg-agent/internal/config"
 	"github.com/dmoebius/tg-agent/internal/preflight"
 	"github.com/dmoebius/tg-agent/internal/prompt"
+	"github.com/dmoebius/tg-agent/internal/provision"
 	"github.com/dmoebius/tg-agent/internal/ssh"
 	"github.com/dmoebius/tg-agent/internal/telegram"
 	"github.com/dmoebius/tg-agent/internal/vm"
@@ -40,7 +41,7 @@ func newRootCmd() *cobra.Command {
 		&cobra.Command{Use: "start", Short: "Create the VM on first run, start it and wait until Takopi runs", Args: cobra.NoArgs, RunE: runStart},
 		&cobra.Command{Use: "stop", Short: "Shut the VM down", Args: cobra.NoArgs, RunE: runStop},
 		&cobra.Command{Use: "status", Short: "Show VM and Takopi status", Args: cobra.NoArgs, RunE: runStatus},
-		&cobra.Command{Use: "update", Short: "Update packages, Claude, Takopi and push the current config into the VM", Args: cobra.NoArgs, RunE: runUpdate},
+		&cobra.Command{Use: "update", Short: "Push the config, re-run provisioning (install and upgrade tools) and clone new projects", Args: cobra.NoArgs, RunE: runUpdate},
 	)
 	return root
 }
@@ -198,10 +199,16 @@ func runStart(cmd *cobra.Command, _ []string) error {
 	if err := c.Run(ctx, os.Stdout, nil, "cloud-init status --wait --long"); err != nil {
 		return fmt.Errorf("provisioning failed, see /var/log/cloud-init-output.log in the VM: %w", err)
 	}
+	cloned := syncProjects(ctx, c, m.Cfg.Projects)
 	if err := ensureClaudeAuth(ctx, c); err != nil {
 		return err
 	}
-	fmt.Println("Ready. Create a topic in your Telegram group and start chatting.")
+	if cloned {
+		if _, err := c.Output(ctx, "sudo systemctl restart takopi"); err != nil {
+			return fmt.Errorf("restart takopi: %w", err)
+		}
+	}
+	fmt.Println("Ready. Create a topic in your Telegram forum and bind it with `/topic <project> @<branch>`.")
 	return nil
 }
 
@@ -281,15 +288,17 @@ func runUpdate(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
+	// Provisioning installs the uploaded takopi.toml and upgrades or installs
+	// every tool, so a changed provision.sh takes effect here too.
+	const upload = "sudo install -d -m 700 /opt/tg-agent && sudo sh -c 'umask 077 && cat > /opt/tg-agent/%s'"
 	steps := []struct {
 		desc, cmd string
 		stdin     string
 	}{
-		{"config", "cat > ~/.takopi/takopi.toml && chmod 600 ~/.takopi/takopi.toml", m.Cfg.TakopiTOML()},
+		{"config", fmt.Sprintf(upload, "takopi.toml"), m.Cfg.TakopiTOML()},
+		{"provision script", fmt.Sprintf(upload, "provision.sh"), provision.Script()},
 		{"apt", "sudo DEBIAN_FRONTEND=noninteractive apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get -y upgrade", ""},
-		{"claude", "bash -lc 'claude update || curl -fsSL https://claude.ai/install.sh | bash'", ""},
-		{"takopi", "bash -lc 'uv tool upgrade takopi'", ""},
-		{"restart", "sudo systemctl restart takopi", ""},
+		{"provision", "sudo bash /opt/tg-agent/provision.sh", ""},
 	}
 	for _, s := range steps {
 		fmt.Printf("==> %s\n", s.desc)
@@ -301,5 +310,31 @@ func runUpdate(cmd *cobra.Command, _ []string) error {
 			return fmt.Errorf("%s: %w", s.desc, err)
 		}
 	}
+	syncProjects(ctx, c, m.Cfg.Projects)
+	fmt.Println("==> restart")
+	if err := c.Run(ctx, os.Stdout, nil, "sudo systemctl restart takopi"); err != nil {
+		return fmt.Errorf("restart: %w", err)
+	}
 	return nil
+}
+
+// syncProjects clones every Project that is not yet in the Workspace and
+// reports whether anything was cloned. Existing checkouts are never touched.
+// Clone failures (typically missing git credentials in the VM) are reported
+// but do not abort, so one broken Project does not block the others.
+func syncProjects(ctx context.Context, c ssh.Client, projects []config.Project) (cloned bool) {
+	for _, p := range projects {
+		dir := ssh.Quote(p.Dir())
+		if _, err := c.Output(ctx, "test -d "+dir); err == nil {
+			continue
+		}
+		fmt.Printf("==> clone %s\n", p.Alias)
+		cmd := "GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=accept-new' git clone " + ssh.Quote(p.URL) + " " + dir
+		if err := c.Run(ctx, os.Stdout, nil, cmd); err != nil {
+			fmt.Printf("warning: cloning project %q failed (git credentials in the VM? run `%s`): %v\n", p.Alias, c.Command(), err)
+			continue
+		}
+		cloned = true
+	}
+	return cloned
 }
