@@ -6,6 +6,7 @@ Go CLI that manages a single libvirt VM running Claude Code and Takopi (Telegram
 
 ## Git workflow
 
+- Before every commit, run `gofmt -w` on all changed Go files.
 - Simple changes: commit and push directly to `main`.
 - Complex changes: feature branch with prefix `feat/`.
 - Fixes: branch with prefix `fix/`.
