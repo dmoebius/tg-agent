@@ -9,6 +9,8 @@ package takopi
 import (
 	"bytes"
 	"fmt"
+	"reflect"
+	"sort"
 
 	"github.com/BurntSushi/toml"
 
@@ -73,5 +75,46 @@ func table(parent map[string]any, key string) (map[string]any, error) {
 func setDefault(t map[string]any, key string, v any) {
 	if _, ok := t[key]; !ok {
 		t[key] = v
+	}
+}
+
+// Drift returns the keys of existing (the VM's takopi.toml) that tg-agent
+// manages but that differ from what Merge would set, e.g.
+// "transports.telegram.bot_token". It never returns values: the token is
+// secret. Empty means the VM uses the current Config.
+func Drift(existing string, tg config.Telegram) ([]string, error) {
+	have := map[string]any{}
+	if _, err := toml.Decode(existing, &have); err != nil {
+		return nil, fmt.Errorf("parse takopi.toml: %w", err)
+	}
+	merged, err := Merge(existing, tg)
+	if err != nil {
+		return nil, err
+	}
+	want := map[string]any{}
+	if _, err := toml.Decode(merged, &want); err != nil {
+		return nil, err
+	}
+	var out []string
+	diff("", have, want, &out)
+	sort.Strings(out)
+	return out, nil
+}
+
+// diff appends the dotted paths of the leaves that differ between have and
+// want. Merge only adds or changes keys, so walking want finds them all.
+func diff(prefix string, have, want map[string]any, out *[]string) {
+	for k, w := range want {
+		h, ok := have[k]
+		wt, wIsTable := w.(map[string]any)
+		ht, hIsTable := h.(map[string]any)
+		switch {
+		case wIsTable && hIsTable:
+			diff(prefix+k+".", ht, wt, out)
+		case wIsTable && !ok:
+			diff(prefix+k+".", nil, wt, out)
+		case !ok || !reflect.DeepEqual(h, w):
+			*out = append(*out, prefix+k)
+		}
 	}
 }

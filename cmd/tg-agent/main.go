@@ -56,6 +56,7 @@ its exit code. Everything after "shell" belongs to the remote command, flags too
 			RunE:               runShell,
 		},
 		newDeleteCmd(),
+		newDoctorCmd(),
 	)
 	return root
 }

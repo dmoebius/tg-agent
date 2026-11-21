@@ -113,3 +113,30 @@ func TestForumWebLink(t *testing.T) {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 }
+
+func TestWebhook(t *testing.T) {
+	deleted := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/botTOKEN/getWebhookInfo":
+			fmt.Fprint(w, `{"ok":true,"result":{"url":"https://example.org/hook","pending_update_count":3}}`)
+		case "/botTOKEN/deleteWebhook":
+			deleted = true
+			fmt.Fprint(w, `{"ok":true,"result":true}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	c := Client{Token: "TOKEN", BaseURL: srv.URL}
+	w, err := c.Webhook(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w.URL != "https://example.org/hook" || w.Pending != 3 {
+		t.Errorf("Webhook() = %+v", w)
+	}
+	if err := c.DeleteWebhook(context.Background()); err != nil || !deleted {
+		t.Errorf("DeleteWebhook() err = %v, deleted = %v", err, deleted)
+	}
+}

@@ -1,6 +1,7 @@
 package takopi
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/BurntSushi/toml"
@@ -95,5 +96,30 @@ func TestMergeRejectsBrokenFile(t *testing.T) {
 		if _, err := Merge(in, tg); err == nil {
 			t.Errorf("%q: expected error", in)
 		}
+	}
+}
+
+func TestDrift(t *testing.T) {
+	tg := config.Telegram{BotToken: "tok", ChatID: -100, AllowedUserIDs: []int64{1, 2}}
+	current, err := Merge("[projects.foo]\npath = \"/x\"\n", tg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d, err := Drift(current, tg); err != nil || len(d) != 0 {
+		t.Errorf("Drift(current) = %v, %v; want none", d, err)
+	}
+	changed := tg
+	changed.BotToken = "other"
+	changed.AllowedUserIDs = []int64{1}
+	d, err := Drift(current, changed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "transports.telegram.allowed_user_ids transports.telegram.bot_token"
+	if got := strings.Join(d, " "); got != want {
+		t.Errorf("Drift(changed) = %q, want %q", got, want)
+	}
+	if d, _ := Drift("", tg); len(d) == 0 {
+		t.Error("Drift of an empty file must report the missing keys")
 	}
 }

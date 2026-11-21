@@ -182,3 +182,27 @@ const generalTopicID = 1
 func ForumWebLink(chatID int64) string {
 	return fmt.Sprintf("https://web.telegram.org/a/#%d_%d", chatID, generalTopicID)
 }
+
+// Webhook describes how Telegram delivers the bot's updates.
+type Webhook struct {
+	// URL is the configured webhook, empty if none. While one is set,
+	// Telegram rejects getUpdates, so Takopi (which polls) receives nothing.
+	URL string `json:"url"`
+	// Pending is the number of updates nobody has fetched yet.
+	Pending int `json:"pending_update_count"`
+}
+
+// Webhook returns the bot's webhook state. Unlike getUpdates it does not
+// interfere with Takopi's polling.
+func (c Client) Webhook(ctx context.Context) (Webhook, error) {
+	var w Webhook
+	err := c.call(ctx, "getWebhookInfo", nil, &w)
+	return w, err
+}
+
+// DeleteWebhook removes the bot's webhook so polling works again. Pending
+// updates are kept.
+func (c Client) DeleteWebhook(ctx context.Context) error {
+	var ok bool
+	return c.call(ctx, "deleteWebhook", nil, &ok)
+}
