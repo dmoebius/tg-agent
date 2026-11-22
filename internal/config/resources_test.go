@@ -7,7 +7,8 @@ import (
 
 func TestParseMemory(t *testing.T) {
 	for in, want := range map[string]int{
-		"8192":   8192,
+		"8":      8192,
+		"1.5":    1536,
 		"16G":    16384,
 		"16g":    16384,
 		"16GiB":  16384,

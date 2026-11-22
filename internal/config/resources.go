@@ -104,10 +104,10 @@ func parseMB(s string, defMB float64) (float64, error) {
 	return n * unit, nil
 }
 
-// ParseMemory parses a memory size like "16G" or "16384M" into MiB. A plain
-// number means MiB, like memory_mb in the Config.
+// ParseMemory parses a memory size like "16G", "1.5G" or "16384M" into MiB. A
+// plain number means GiB, like --disk.
 func ParseMemory(s string) (int, error) {
-	mb, err := parseMB(s, 1)
+	mb, err := parseMB(s, 1024)
 	if err != nil {
 		return 0, err
 	}

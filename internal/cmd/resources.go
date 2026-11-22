@@ -14,7 +14,7 @@ import (
 // not set and keep the Config's value.
 type ResourceFlags struct {
 	CPUs   int
-	Memory string // e.g. "16G"; a plain number means MiB
+	Memory string // e.g. "16G"; a plain number means GiB
 	Disk   string // e.g. "100G"; a plain number means GiB
 }
 

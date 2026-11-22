@@ -97,7 +97,7 @@ Values changed by hand in the config are applied as well, so "tg-agent update"
 without flags reconciles the VM with the config.
 
   --cpus N       number of CPUs, at most the host's
-  --memory SIZE  memory, e.g. 16G or 16384M; a plain number means MiB
+  --memory SIZE  memory, e.g. 16G or 16384M; a plain number means GiB
   --disk SIZE    disk size, e.g. 100G; a plain number means GiB. The disk
                  only grows, inside the VM at once.
 
@@ -109,7 +109,7 @@ next start of the VM.`,
 		RunE: func(c *cobra.Command, _ []string) error { return cmd.Update(c.Context(), res) },
 	}
 	update.Flags().IntVar(&res.CPUs, "cpus", 0, "number of CPUs")
-	update.Flags().StringVar(&res.Memory, "memory", "", "memory, e.g. 16G (plain number: MiB)")
+	update.Flags().StringVar(&res.Memory, "memory", "", "memory, e.g. 16G (plain number: GiB)")
 	update.Flags().StringVar(&res.Disk, "disk", "", "disk size, e.g. 100G (plain number: GiB); can only grow")
 
 	shell := &cobra.Command{
