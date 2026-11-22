@@ -30,24 +30,7 @@ func Start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return boot(ctx, m, forum)
-}
-
-// boot creates or starts the VM, waits until it is provisioned, logs Claude
-// in if needed and tells the user how to go on. forum is the Forum's title.
-func boot(ctx context.Context, m *vm.Manager, forum string) error {
-	if err := m.EnsureRunning(ctx); err != nil {
-		return err
-	}
-	c, err := m.Connect(ctx, 5*time.Minute)
-	if err != nil {
-		return err
-	}
-	fmt.Println("Waiting for provisioning (cloud-init) ...")
-	if err := c.WaitProvisioned(ctx); err != nil {
-		return err
-	}
-	if err := c.EnsureClaudeAuth(ctx, prompt.Interactive()); err != nil {
+	if err := boot(ctx, m); err != nil {
 		return err
 	}
 	const topic = "General"
@@ -59,4 +42,21 @@ then open a topic for it with `+"`/topic <alias> @<branch>`"+`.
 Use `+"`tg-agent status`"+` to get further connection infos.
 `, forum, topic)
 	return nil
+}
+
+// boot creates or starts the VM, waits until it is provisioned and logs
+// Claude in if needed.
+func boot(ctx context.Context, m *vm.Manager) error {
+	if err := m.EnsureRunning(ctx); err != nil {
+		return err
+	}
+	c, err := m.Connect(ctx, 5*time.Minute)
+	if err != nil {
+		return err
+	}
+	fmt.Println("Waiting for provisioning (cloud-init) ...")
+	if err := c.WaitProvisioned(ctx); err != nil {
+		return err
+	}
+	return c.EnsureClaudeAuth(ctx, prompt.Interactive())
 }

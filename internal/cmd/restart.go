@@ -21,16 +21,14 @@ func Restart(ctx context.Context) error {
 	if st != vm.Running {
 		return fmt.Errorf("VM is %s, not running; use `tg-agent start`", st)
 	}
-	// Check the bot's rights before shutting down, so a problem there does
-	// not leave the VM stopped.
-	forum, err := checkForum(ctx, m.Cfg.Telegram)
-	if err != nil {
-		return err
-	}
 	fmt.Println("Shutting the VM down ...")
 	if err := m.Stop(ctx); err != nil {
 		return err
 	}
 	fmt.Println("VM stopped, starting it again ...")
-	return boot(ctx, m, forum)
+	if err := boot(ctx, m); err != nil {
+		return err
+	}
+	fmt.Println("VM restarted.")
+	return nil
 }
