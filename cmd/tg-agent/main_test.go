@@ -70,10 +70,12 @@ func TestCommands(t *testing.T) {
 		}
 	}
 
-	sh, _, err := root.Find([]string{"sh"})
-	if err != nil || sh.Name() != "shell" {
-		t.Errorf("sh is not an alias of shell: %v", err)
+	for _, alias := range []string{"sh", "ssh"} {
+		if c, _, err := root.Find([]string{alias}); err != nil || c.Name() != "shell" {
+			t.Errorf("%s is not an alias of shell: %v", alias, err)
+		}
 	}
+	sh, _, _ := root.Find([]string{"shell"})
 	if !sh.DisableFlagParsing {
 		t.Error("shell must pass flags through to the remote command")
 	}

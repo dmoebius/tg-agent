@@ -114,7 +114,7 @@ next start of the VM.`,
 
 	shell := &cobra.Command{
 		Use:     "shell [<command> [<args>...]]",
-		Aliases: []string{"sh"},
+		Aliases: []string{"sh", "ssh"},
 		Short:   "Open a login shell in the VM, or run a command there",
 		Long: `Without arguments, opens an interactive login shell in the VM as user agent.
 With arguments, runs <command> <args> in a login shell in the VM and exits with
