@@ -30,6 +30,12 @@ func Start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	return boot(ctx, m, forum)
+}
+
+// boot creates or starts the VM, waits until it is provisioned, logs Claude
+// in if needed and tells the user how to go on. forum is the Forum's title.
+func boot(ctx context.Context, m *vm.Manager, forum string) error {
 	if err := m.EnsureRunning(ctx); err != nil {
 		return err
 	}

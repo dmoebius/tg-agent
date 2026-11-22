@@ -123,7 +123,7 @@ func restartForResources(ctx context.Context, m *vm.Manager, current, want vm.Re
 	if current.MemoryMB != want.MemoryMB {
 		fmt.Printf("  Memory: %s -> %s\n", config.FormatMB(current.MemoryMB), config.FormatMB(want.MemoryMB))
 	}
-	const later = "`tg-agent stop && tg-agent start`"
+	const later = "`tg-agent restart`"
 	if !prompt.Interactive() {
 		return fmt.Errorf("a restart interrupts running sessions and needs confirmation in a terminal; restart the VM with %s or run `tg-agent update` in a terminal", later)
 	}
@@ -132,7 +132,7 @@ func restartForResources(ctx context.Context, m *vm.Manager, current, want vm.Re
 		return err
 	}
 	if !ok {
-		fmt.Printf("Not restarted. The change takes effect on the next start of the VM: %s\n", later)
+		fmt.Printf("Not restarted. The change takes effect when the VM restarts: %s\n", later)
 		return nil
 	}
 	fmt.Println("Shutting the VM down ...")

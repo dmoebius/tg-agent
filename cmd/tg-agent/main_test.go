@@ -35,13 +35,14 @@ func TestExitCode(t *testing.T) {
 func TestCommands(t *testing.T) {
 	root := newRootCmd()
 	flags := map[string][]string{
-		"start":  nil,
-		"stop":   nil,
-		"status": nil,
-		"update": {"cpus", "memory", "disk"},
-		"shell":  nil,
-		"delete": {"wipe-disk", "wipe-all"},
-		"doctor": {"fix"},
+		"start":   nil,
+		"stop":    nil,
+		"restart": nil,
+		"status":  nil,
+		"update":  {"cpus", "memory", "disk"},
+		"shell":   nil,
+		"delete":  {"wipe-disk", "wipe-all"},
+		"doctor":  {"fix"},
 	}
 	for name, want := range flags {
 		c, _, err := root.Find([]string{name})

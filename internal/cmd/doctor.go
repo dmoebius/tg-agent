@@ -230,7 +230,7 @@ func (d *doctor) checkVM(ctx context.Context, m *vm.Manager) *vm.Conn {
 	c, err := m.Connect(ctx, timeout)
 	if err != nil {
 		d.fail("SSH into the VM: %v", err)
-		d.hint("The VM may still be booting, or hang: try `tg-agent stop && tg-agent start`.")
+		d.hint("The VM may still be booting, or hang: try `tg-agent restart`.")
 		return nil
 	}
 	d.ok("SSH into the VM (%s)", c.Host)
@@ -245,7 +245,7 @@ func (d *doctor) checkNet(ctx context.Context, m *vm.Manager, c *vm.Conn) (ok, f
 	n := c.Net(ctx)
 	if n.Gateway == "" || !n.GatewayOK {
 		d.fail("VM network: no connection to the host (gateway %q)", n.Gateway)
-		d.hint("Restart the VM: `tg-agent stop && tg-agent start`.")
+		d.hint("Restart the VM: `tg-agent restart`.")
 		return false, false
 	}
 	d.ok("VM network: reaches the host (gateway %s)", n.Gateway)

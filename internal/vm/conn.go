@@ -179,7 +179,7 @@ func (c *Conn) Update(ctx context.Context, tg config.Telegram) error {
 	}
 	fmt.Fprintln(c.out, "\nUpdate complete.")
 	if _, err := c.r.Output(ctx, "test -e /var/run/reboot-required"); err == nil {
-		fmt.Fprintln(c.out, "The VM needs a reboot to complete the update (e.g. a new kernel): run `tg-agent stop && tg-agent start`.")
+		fmt.Fprintln(c.out, "The VM needs a reboot to complete the update (e.g. a new kernel): run `tg-agent restart`.")
 	}
 	return nil
 }

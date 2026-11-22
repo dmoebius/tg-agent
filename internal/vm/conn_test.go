@@ -116,7 +116,7 @@ func TestUpdateReportsPendingReboot(t *testing.T) {
 	if err := (&Conn{r: newFake(), out: &out}).Update(context.Background(), config.Telegram{}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "tg-agent stop && tg-agent start") {
+	if !strings.Contains(out.String(), "tg-agent restart") {
 		t.Errorf("no reboot hint:\n%s", out.String())
 	}
 }

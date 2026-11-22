@@ -77,6 +77,16 @@ uses the config's values. To change them later, use "tg-agent update".`,
 		RunE:  func(c *cobra.Command, _ []string) error { return cmd.Stop(c.Context()) },
 	}
 
+	restart := &cobra.Command{
+		Use:   "restart",
+		Short: "Shut the running VM down and start it again",
+		Long: `Shuts the running VM down (forcing it off after 60 seconds) and starts it
+again, like "tg-agent stop" followed by "tg-agent start". Running sessions are
+interrupted. Fails if the VM is not running; use "tg-agent start" then.`,
+		Args: cobra.NoArgs,
+		RunE: func(c *cobra.Command, _ []string) error { return cmd.Restart(c.Context()) },
+	}
+
 	status := &cobra.Command{
 		Use:   "status",
 		Short: "Show VM and Takopi status",
@@ -170,6 +180,6 @@ Exits with status 1 if problems remain.`,
 	}
 	doctor.Flags().BoolVar(&fix, "fix", false, "repair what can be repaired (may ask for your sudo password)")
 
-	root.AddCommand(start, stop, status, update, shell, del, doctor)
+	root.AddCommand(start, stop, restart, status, update, shell, del, doctor)
 	return root
 }
