@@ -99,7 +99,7 @@ func (c *Config) applyDefaults() {
 			*i = d
 		}
 	}
-	defi(&v.CPUs, 4)
+	defi(&v.CPUs, DefaultCPUs())
 	defi(&v.MemoryMB, 8192)
 	defi(&v.DiskGB, 60)
 	def(&v.ImageURL, "https://cloud-images.ubuntu.com/resolute/current/resolute-server-cloudimg-amd64.img")
