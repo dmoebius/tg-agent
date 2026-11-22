@@ -25,3 +25,5 @@ Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-
 ### Domain docs
 
 Single-context: one `GLOSSARY.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+Glossary terms (Host, Config, Session, ...) are capitalized only in specs, docs, issues and code comments. In CLI output (help texts, flag usage, messages, errors, prompts) they are ordinary words in lower case: "the host", "the config", "running sessions". Sentence starts, field labels like `Config:` in `status`, proper nouns (Telegram, Takopi, Claude) and Telegram UI names ("Manage Topics") keep their capitals.
