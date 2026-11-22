@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"context"
@@ -9,8 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/dmoebius/tg-agent/internal/config"
 	"github.com/dmoebius/tg-agent/internal/preflight"
 	"github.com/dmoebius/tg-agent/internal/takopi"
@@ -18,41 +16,23 @@ import (
 	"github.com/dmoebius/tg-agent/internal/vm"
 )
 
-func newDoctorCmd() *cobra.Command {
-	var fix bool
-	cmd := &cobra.Command{
-		Use:   "doctor [--fix]",
-		Short: "Find out why the bot does not answer, and optionally repair it",
-		Long: `Checks the whole path from Telegram to Claude: the bot and its rights in the
-forum, the VM, the VM's network (gateway, DNS, internet, Telegram), the Takopi
-service, its config and its log, and Claude's login. "status" only shows
-whether the Takopi service runs; "doctor" shows whether it can actually work.
-
-Without flags it only reports. With --fix it also repairs what it can: starts
-a stopped VM, lets the VM's traffic through Docker's firewall on the Host
-(asks for your sudo password and
-prints every sudo command before running it), removes a webhook and restarts Takopi.
-
-Exits with status 1 if problems remain.`,
-		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			d := &doctor{fix: fix}
-			if err := d.run(cmd.Context()); err != nil {
-				return err
-			}
-			fmt.Println()
-			if d.problems == 0 {
-				fmt.Println("No problems found.")
-				return nil
-			}
-			if !fix {
-				fmt.Println("Run `tg-agent doctor --fix` to repair what can be repaired automatically.")
-			}
-			return fmt.Errorf("%d problem(s) found", d.problems)
-		},
+// Doctor checks the whole path from Telegram to Claude and reports what is
+// wrong; with fix it also repairs what it can. It returns an error if
+// problems remain.
+func Doctor(ctx context.Context, fix bool) error {
+	d := &doctor{fix: fix}
+	if err := d.run(ctx); err != nil {
+		return err
 	}
-	cmd.Flags().BoolVar(&fix, "fix", false, "repair what can be repaired (may ask for your sudo password)")
-	return cmd
+	fmt.Println()
+	if d.problems == 0 {
+		fmt.Println("No problems found.")
+		return nil
+	}
+	if !fix {
+		fmt.Println("Run `tg-agent doctor --fix` to repair what can be repaired automatically.")
+	}
+	return fmt.Errorf("%d problem(s) found", d.problems)
 }
 
 // doctor runs the checks in order, from Telegram towards Claude, and counts
