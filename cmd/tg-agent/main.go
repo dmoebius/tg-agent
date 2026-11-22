@@ -91,7 +91,7 @@ kept, so a later "tg-agent start" re-creates the VM on the existing disk.
 
   --wipe-disk  additionally removes data_dir (disk, base image, SSH key,
                cloud-init files) and the libvirt storage pool pointing at it.
-               All Projects and Sessions in the VM are lost.
+               All projects and sessions in the VM are lost.
   --wipe-all   additionally removes the config directory
                %s COMPLETELY,
                including config.toml with the Telegram bot token and ids;
@@ -118,7 +118,7 @@ service, its config and its log, and Claude's login. "status" only shows
 whether the Takopi service runs; "doctor" shows whether it can actually work.
 
 Without flags it only reports. With --fix it also repairs what it can: starts
-a stopped VM, lets the VM's traffic through Docker's firewall on the Host
+a stopped VM, lets the VM's traffic through Docker's firewall on the host
 (asks for your sudo password and
 prints every sudo command before running it), removes a webhook and restarts Takopi.
 

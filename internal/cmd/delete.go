@@ -106,12 +106,12 @@ func printDeletePlan(inv *vm.Inventory, wipeDisk, wipeConfig, cfgExists bool) {
 	if wipeDisk {
 		bar := strings.Repeat("!", 76)
 		fmt.Println(bar)
-		fmt.Println("!! ALL Projects, Sessions and uncommitted or unpushed work in the Workspace")
+		fmt.Println("!! ALL projects, sessions and uncommitted or unpushed work in the workspace")
 		fmt.Println("!! are lost IRREVOCABLY. Push everything you want to keep first.")
 		fmt.Println(bar)
 	} else {
 		fmt.Println("The disk, data_dir and config are kept; `tg-agent start` re-creates the VM")
-		fmt.Println("on the existing disk (Workspace, Projects and Sessions survive).")
+		fmt.Println("on the existing disk (workspace, projects and sessions survive).")
 	}
 	fmt.Println()
 }

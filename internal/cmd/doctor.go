@@ -244,19 +244,19 @@ func (d *doctor) checkVM(ctx context.Context, m *vm.Manager) *vm.Conn {
 func (d *doctor) checkNet(ctx context.Context, m *vm.Manager, c *vm.Conn) (ok, fixed bool) {
 	n := c.Net(ctx)
 	if n.Gateway == "" || !n.GatewayOK {
-		d.fail("VM network: no connection to the Host (gateway %q)", n.Gateway)
+		d.fail("VM network: no connection to the host (gateway %q)", n.Gateway)
 		d.hint("Restart the VM: `tg-agent stop && tg-agent start`.")
 		return false, false
 	}
-	d.ok("VM network: reaches the Host (gateway %s)", n.Gateway)
+	d.ok("VM network: reaches the host (gateway %s)", n.Gateway)
 
 	if !n.Internet {
-		d.fail("VM network: no internet, the Host does not forward the VM's traffic")
+		d.fail("VM network: no internet, the host does not forward the VM's traffic")
 		if !d.fixForwarding(ctx, m) {
 			return false, false
 		}
 		if n = c.Net(ctx); !n.Internet {
-			d.hint("Still no internet. Inspect the Host's firewall: `sudo nft list ruleset`.")
+			d.hint("Still no internet. Inspect the host's firewall: `sudo nft list ruleset`.")
 			return false, false
 		}
 		d.fixed("VM network: internet reachable")
@@ -275,9 +275,9 @@ func (d *doctor) checkNet(ctx context.Context, m *vm.Manager, c *vm.Conn) (ok, f
 	if !n.Telegram {
 		d.fail("VM network: api.telegram.org does not answer")
 		if _, err := (telegram.Client{}).BotUsername(ctx); isNetworkError(err) {
-			d.hint("The Host cannot reach it either: Telegram may be down or blocked in this network.")
+			d.hint("The host cannot reach it either: Telegram may be down or blocked in this network.")
 		} else {
-			d.hint("The Host reaches it, the VM does not: a VPN or firewall on the Host may block the VM.")
+			d.hint("The host reaches it, the VM does not: a VPN or firewall on the host may block the VM.")
 		}
 		return false, fixed
 	}
@@ -301,7 +301,7 @@ func (d *doctor) fixForwarding(ctx context.Context, m *vm.Manager) bool {
 	}
 	changed := false
 	if !f.IPForward {
-		d.hint("IP forwarding is off on the Host (net.ipv4.ip_forward = 0).")
+		d.hint("IP forwarding is off on the host (net.ipv4.ip_forward = 0).")
 		if d.fix {
 			if err := m.EnableIPForward(ctx); err != nil {
 				d.hint("enabling it failed: %v", err)
@@ -312,11 +312,11 @@ func (d *doctor) fixForwarding(ctx context.Context, m *vm.Manager) bool {
 	}
 	if !f.Docker {
 		if f.IPForward {
-			d.hint("A firewall on the Host probably drops traffic from %s. Inspect it: `sudo nft list ruleset`.", f.Bridge)
+			d.hint("A firewall on the host probably drops traffic from %s. Inspect it: `sudo nft list ruleset`.", f.Bridge)
 		}
 		return changed
 	}
-	d.hint(`Docker runs on the Host. Its firewall drops all forwarded traffic except that
+	d.hint(`Docker runs on the host. Its firewall drops all forwarded traffic except that
 of its own networks (iptables chain FORWARD, policy DROP), including the VM's on %s.
 libvirt's own rules cannot override that.`, f.Bridge)
 	if !d.fix {
@@ -332,7 +332,7 @@ libvirt's own rules cannot override that.`, f.Bridge)
 		}
 		return changed
 	}
-	d.hint(`The rules last until the Host reboots; run "tg-agent doctor --fix" again then.
+	d.hint(`The rules last until the host reboots; run "tg-agent doctor --fix" again then.
 For a permanent solution make libvirt use the same firewall as Docker: set
 firewall_backend = "iptables" in /etc/libvirt/network.conf and restart
 libvirtd (see https://libvirt.org/firewall.html).`)
@@ -348,13 +348,13 @@ func (d *doctor) explainDNS(ctx context.Context, gateway string) {
 	_, err := net.DefaultResolver.LookupHost(lctx, "api.telegram.org")
 	ns := strings.Join(hostNameservers(), ", ")
 	if err != nil {
-		d.hint("The Host cannot resolve it either (%v).", err)
-		d.hint("Check the nameservers in the Host's /etc/resolv.conf: %s", ns)
+		d.hint("The host cannot resolve it either (%v).", err)
+		d.hint("Check the nameservers in the host's /etc/resolv.conf: %s", ns)
 		d.hint("After a VPN was connected or dropped they may be unreachable; reconnect the network or the VPN.")
 		return
 	}
-	d.hint(`The Host resolves it, the VM does not. The VM asks libvirt's dnsmasq on %s,
-which forwards to the nameservers in the Host's /etc/resolv.conf: %s
+	d.hint(`The host resolves it, the VM does not. The VM asks libvirt's dnsmasq on %s,
+which forwards to the nameservers in the host's /etc/resolv.conf: %s
 After a VPN change dnsmasq may still use nameservers that are no longer reachable.
 Restart the libvirt network's DNS: sudo systemctl restart libvirtd`, gateway, ns)
 }
@@ -390,8 +390,8 @@ func (d *doctor) checkTakopiConfig(ctx context.Context, c *vm.Conn, t config.Tel
 	}
 	if len(drift) > 0 {
 		d.fail("Takopi config in the VM differs from %s in: %s", config.Path(), strings.Join(drift, ", "))
-		d.hint("Run `tg-agent update` to push the Config into the VM.")
+		d.hint("Run `tg-agent update` to push the config into the VM.")
 		return
 	}
-	d.ok("Takopi config in the VM matches the Config")
+	d.ok("Takopi config in the VM matches the config")
 }
