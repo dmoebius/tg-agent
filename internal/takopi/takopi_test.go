@@ -34,6 +34,9 @@ type parsed struct {
 		WorktreeBase string `toml:"worktree_base"`
 	} `toml:"projects"`
 	DefaultProject string `toml:"default_project"`
+	Claude         struct {
+		AllowedTools []string `toml:"allowed_tools"`
+	} `toml:"claude"`
 }
 
 func merge(t *testing.T, existing string) parsed {
@@ -57,6 +60,9 @@ func TestMergeFresh(t *testing.T) {
 		tt.SessionMode != "chat" || tt.ShowResumeLine || !tt.Topics.Enabled || tt.Topics.Scope != "main" {
 		t.Fatalf("%+v", p)
 	}
+	if got := strings.Join(p.Claude.AllowedTools, " "); got != "Bash Read Edit Write WebSearch WebFetch" {
+		t.Fatalf("claude.allowed_tools = %q", got)
+	}
 }
 
 func TestMergePreservesTakopiOwnedKeys(t *testing.T) {
@@ -77,12 +83,16 @@ enabled = false
 path = "/home/agent/work/foo"
 worktrees_dir = ".worktrees"
 worktree_base = "main"
+
+[claude]
+allowed_tools = ["Read"]
 `)
 	tt := p.Transports.Telegram
 	if tt.BotToken != "new-token" || tt.ChatID != -100123 || len(tt.AllowedUserIDs) != 2 || !tt.Topics.Enabled {
 		t.Fatalf("managed keys not enforced: %+v", tt)
 	}
-	if p.DefaultEngine != "codex" || !tt.ShowResumeLine || p.DefaultProject != "foo" {
+	if p.DefaultEngine != "codex" || !tt.ShowResumeLine || p.DefaultProject != "foo" ||
+		strings.Join(p.Claude.AllowedTools, " ") != "Read" {
 		t.Fatalf("user settings overwritten: %+v", p)
 	}
 	foo := p.Projects["foo"]

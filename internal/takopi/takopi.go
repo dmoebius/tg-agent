@@ -17,6 +17,10 @@ import (
 	"github.com/dmoebius/tg-agent/internal/config"
 )
 
+// AllowedTools are the Claude tools Sessions may use without asking, unless
+// claude.allowed_tools is set in the VM's takopi.toml already.
+var AllowedTools = []string{"Bash", "Read", "Edit", "Write", "WebSearch", "WebFetch"}
+
 // Merge returns existing (the current takopi.toml, may be empty) with the
 // keys tg-agent manages set from tg. Everything else is preserved.
 func Merge(existing string, tg config.Telegram) (string, error) {
@@ -36,6 +40,10 @@ func Merge(existing string, tg config.Telegram) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	claude, err := table(doc, "claude")
+	if err != nil {
+		return "", err
+	}
 
 	// Enforced: credentials and the one-Session-per-Topic setup.
 	doc["transport"] = "telegram"
@@ -50,6 +58,9 @@ func Merge(existing string, tg config.Telegram) (string, error) {
 	// Defaults only: the user may change these in the VM.
 	setDefault(doc, "default_engine", "claude")
 	setDefault(telegram, "show_resume_line", false)
+	// A list replaces Takopi's default (Bash, Read, Edit, Write), so it
+	// repeats those and adds web access.
+	setDefault(claude, "allowed_tools", AllowedTools)
 
 	var b bytes.Buffer
 	if err := toml.NewEncoder(&b).Encode(doc); err != nil {
