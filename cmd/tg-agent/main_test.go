@@ -38,7 +38,7 @@ func TestCommands(t *testing.T) {
 		"start":  nil,
 		"stop":   nil,
 		"status": nil,
-		"update": nil,
+		"update": {"cpus", "memory", "disk"},
 		"shell":  nil,
 		"delete": {"wipe-disk", "wipe-all"},
 		"doctor": {"fix"},

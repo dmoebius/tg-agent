@@ -26,8 +26,8 @@ func TestDescribeResource(t *testing.T) {
 	for _, tc := range []struct{ current, next, cfg, want string }{
 		{"4", "4", "4", "4"},
 		{"4", "8", "8", "4 (8 pending restart)"},
-		{"4", "4", "8", "4 (Config: 8, hint)"},
-		{"4", "6", "8", "4 (6 pending restart) (Config: 8, hint)"},
+		{"4", "4", "8", "4 (config: 8, hint)"},
+		{"4", "6", "8", "4 (6 pending restart) (config: 8, hint)"},
 	} {
 		if got := describeResource(tc.current, tc.next, tc.cfg, "hint"); got != tc.want {
 			t.Errorf("got %q, want %q", got, tc.want)

@@ -57,16 +57,16 @@ func hostMemoryMB() int {
 // are risky.
 func (v VM) CheckResources(h Host, minDiskGB int) (warnings []string, err error) {
 	if v.CPUs < 1 || v.CPUs > h.CPUs {
-		return nil, fmt.Errorf("cpus = %d: must be between 1 and the Host's %d CPUs", v.CPUs, h.CPUs)
+		return nil, fmt.Errorf("cpus = %d: must be between 1 and the host's %d CPUs", v.CPUs, h.CPUs)
 	}
 	if v.MemoryMB < MinMemoryMB {
 		return nil, fmt.Errorf("memory %s: must be at least %s", FormatMB(v.MemoryMB), FormatMB(MinMemoryMB))
 	}
 	if h.MemoryMB > 0 && v.MemoryMB > h.MemoryMB {
-		return nil, fmt.Errorf("memory %s: the Host has only %s", FormatMB(v.MemoryMB), FormatMB(h.MemoryMB))
+		return nil, fmt.Errorf("memory %s: the host has only %s", FormatMB(v.MemoryMB), FormatMB(h.MemoryMB))
 	}
 	if h.MemoryMB > 0 && v.MemoryMB > h.MemoryMB*3/4 {
-		warnings = append(warnings, fmt.Sprintf("memory %s is more than 75%% of the Host's %s; the Host may start swapping",
+		warnings = append(warnings, fmt.Sprintf("memory %s is more than 75%% of the host's %s; the host may start swapping",
 			FormatMB(v.MemoryMB), FormatMB(h.MemoryMB)))
 	}
 	minDisk := max(minDiskGB, MinDiskGB)

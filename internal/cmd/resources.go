@@ -62,7 +62,7 @@ func chooseResources(ctx context.Context, m *vm.Manager) error {
 		return checkResources(m.Cfg.VM, existing)
 	}
 	h := config.ThisHost()
-	fmt.Printf("Resources of the VM (the Host has %d CPUs and %s of memory", h.CPUs, config.FormatMB(h.MemoryMB))
+	fmt.Printf("Resources of the VM (the host has %d CPUs and %s of memory", h.CPUs, config.FormatMB(h.MemoryMB))
 	if existing > 0 {
 		fmt.Printf("; the existing disk has %d GiB and can only grow", existing)
 	}
@@ -125,9 +125,9 @@ func restartForResources(ctx context.Context, m *vm.Manager, current, want vm.Re
 	}
 	const later = "`tg-agent stop && tg-agent start`"
 	if !prompt.Interactive() {
-		return fmt.Errorf("a restart interrupts running Sessions and needs confirmation in a terminal; restart the VM with %s or run `tg-agent update` in a terminal", later)
+		return fmt.Errorf("a restart interrupts running sessions and needs confirmation in a terminal; restart the VM with %s or run `tg-agent update` in a terminal", later)
 	}
-	ok, err := prompt.Confirm("Restart the VM now? Running Sessions are interrupted")
+	ok, err := prompt.Confirm("Restart the VM now? Running sessions are interrupted")
 	if err != nil {
 		return err
 	}
@@ -158,7 +158,7 @@ func describeResource(current, next, cfg, hint string) string {
 		s += fmt.Sprintf(" (%s pending restart)", next)
 	}
 	if cfg != next {
-		s += fmt.Sprintf(" (Config: %s, %s)", cfg, hint)
+		s += fmt.Sprintf(" (config: %s, %s)", cfg, hint)
 	}
 	return s
 }
