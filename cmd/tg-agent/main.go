@@ -33,6 +33,7 @@ func main() {
 	}
 }
 
+// newRootCmd defines all commands with their flags.
 func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:           "tg-agent",
@@ -40,50 +41,48 @@ func newRootCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-	root.AddCommand(
-		&cobra.Command{
-			Use:   "start",
-			Short: "Create the VM on first run, start it and wait until Takopi runs",
-			Args:  cobra.NoArgs,
-			RunE:  func(c *cobra.Command, _ []string) error { return cmd.Start(c.Context()) },
-		},
-		&cobra.Command{
-			Use:   "stop",
-			Short: "Shut the VM down",
-			Args:  cobra.NoArgs,
-			RunE:  func(c *cobra.Command, _ []string) error { return cmd.Stop(c.Context()) },
-		},
-		&cobra.Command{
-			Use:   "status",
-			Short: "Show VM and Takopi status",
-			Args:  cobra.NoArgs,
-			RunE:  func(c *cobra.Command, _ []string) error { return cmd.Status(c.Context()) },
-		},
-		&cobra.Command{
-			Use:   "update",
-			Short: "Push Telegram settings, re-run provisioning (install and upgrade tools), restart Takopi",
-			Args:  cobra.NoArgs,
-			RunE:  func(c *cobra.Command, _ []string) error { return cmd.Update(c.Context()) },
-		},
-		&cobra.Command{
-			Use:     "shell [<command> [<args>...]]",
-			Aliases: []string{"sh"},
-			Short:   "Open a login shell in the VM, or run a command there",
-			Long: `Without arguments, opens an interactive login shell in the VM as user agent.
+
+	start := &cobra.Command{
+		Use:   "start",
+		Short: "Create the VM on first run, start it and wait until Takopi runs",
+		Args:  cobra.NoArgs,
+		RunE:  func(c *cobra.Command, _ []string) error { return cmd.Start(c.Context()) },
+	}
+
+	stop := &cobra.Command{
+		Use:   "stop",
+		Short: "Shut the VM down",
+		Args:  cobra.NoArgs,
+		RunE:  func(c *cobra.Command, _ []string) error { return cmd.Stop(c.Context()) },
+	}
+
+	status := &cobra.Command{
+		Use:   "status",
+		Short: "Show VM and Takopi status",
+		Args:  cobra.NoArgs,
+		RunE:  func(c *cobra.Command, _ []string) error { return cmd.Status(c.Context()) },
+	}
+
+	update := &cobra.Command{
+		Use:   "update",
+		Short: "Push Telegram settings, re-run provisioning (install and upgrade tools), restart Takopi",
+		Args:  cobra.NoArgs,
+		RunE:  func(c *cobra.Command, _ []string) error { return cmd.Update(c.Context()) },
+	}
+
+	shell := &cobra.Command{
+		Use:     "shell [<command> [<args>...]]",
+		Aliases: []string{"sh"},
+		Short:   "Open a login shell in the VM, or run a command there",
+		Long: `Without arguments, opens an interactive login shell in the VM as user agent.
 With arguments, runs <command> <args> in a login shell in the VM and exits with
 its exit code. Everything after "shell" belongs to the remote command, flags too.`,
-			DisableFlagParsing: true,
-			RunE:               func(c *cobra.Command, args []string) error { return cmd.Shell(c.Context(), args) },
-		},
-		newDeleteCmd(),
-		newDoctorCmd(),
-	)
-	return root
-}
+		DisableFlagParsing: true,
+		RunE:               func(c *cobra.Command, args []string) error { return cmd.Shell(c.Context(), args) },
+	}
 
-func newDeleteCmd() *cobra.Command {
 	var wipeDisk, wipeAll bool
-	c := &cobra.Command{
+	del := &cobra.Command{
 		Use:   "delete [--wipe-disk | --wipe-all]",
 		Short: "Remove the VM, optionally its disk and the config, to start over",
 		Long: fmt.Sprintf(`Removes the VM instance: shuts it down (forcing it off after 30 seconds) and
@@ -106,14 +105,11 @@ Asks for confirmation by typing the VM name; refuses to run without a terminal.`
 			return cmd.Delete(c.Context(), wipeDisk || wipeAll, wipeAll)
 		},
 	}
-	c.Flags().BoolVar(&wipeDisk, "wipe-disk", false, "also remove data_dir (disk, SSH key, ...) and its storage pool")
-	c.Flags().BoolVar(&wipeAll, "wipe-all", false, "also remove data_dir and the whole config directory incl. the bot token (implies --wipe-disk)")
-	return c
-}
+	del.Flags().BoolVar(&wipeDisk, "wipe-disk", false, "also remove data_dir (disk, SSH key, ...) and its storage pool")
+	del.Flags().BoolVar(&wipeAll, "wipe-all", false, "also remove data_dir and the whole config directory incl. the bot token (implies --wipe-disk)")
 
-func newDoctorCmd() *cobra.Command {
 	var fix bool
-	c := &cobra.Command{
+	doctor := &cobra.Command{
 		Use:   "doctor [--fix]",
 		Short: "Find out why the bot does not answer, and optionally repair it",
 		Long: `Checks the whole path from Telegram to Claude: the bot and its rights in the
@@ -130,6 +126,8 @@ Exits with status 1 if problems remain.`,
 		Args: cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error { return cmd.Doctor(c.Context(), fix) },
 	}
-	c.Flags().BoolVar(&fix, "fix", false, "repair what can be repaired (may ask for your sudo password)")
-	return c
+	doctor.Flags().BoolVar(&fix, "fix", false, "repair what can be repaired (may ask for your sudo password)")
+
+	root.AddCommand(start, stop, status, update, shell, del, doctor)
+	return root
 }
