@@ -110,3 +110,26 @@ Asks for confirmation by typing the VM name; refuses to run without a terminal.`
 	c.Flags().BoolVar(&wipeAll, "wipe-all", false, "also remove data_dir and the whole config directory incl. the bot token (implies --wipe-disk)")
 	return c
 }
+
+func newDoctorCmd() *cobra.Command {
+	var fix bool
+	c := &cobra.Command{
+		Use:   "doctor [--fix]",
+		Short: "Find out why the bot does not answer, and optionally repair it",
+		Long: `Checks the whole path from Telegram to Claude: the bot and its rights in the
+forum, the VM, the VM's network (gateway, DNS, internet, Telegram), the Takopi
+service, its config and its log, and Claude's login. "status" only shows
+whether the Takopi service runs; "doctor" shows whether it can actually work.
+
+Without flags it only reports. With --fix it also repairs what it can: starts
+a stopped VM, lets the VM's traffic through Docker's firewall on the Host
+(asks for your sudo password and
+prints every sudo command before running it), removes a webhook and restarts Takopi.
+
+Exits with status 1 if problems remain.`,
+		Args: cobra.NoArgs,
+		RunE: func(c *cobra.Command, _ []string) error { return cmd.Doctor(c.Context(), fix) },
+	}
+	c.Flags().BoolVar(&fix, "fix", false, "repair what can be repaired (may ask for your sudo password)")
+	return c
+}
