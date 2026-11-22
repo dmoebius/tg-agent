@@ -119,3 +119,13 @@ func Int64List(s string) ([]int64, error) {
 	}
 	return out, nil
 }
+
+// Confirm asks a yes/no question; anything but y or yes is no.
+func Confirm(label string) (bool, error) {
+	s, err := String(label+" [y/N]", "")
+	if err != nil {
+		return false, err
+	}
+	s = strings.ToLower(s)
+	return s == "y" || s == "yes", nil
+}

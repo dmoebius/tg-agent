@@ -6,14 +6,24 @@ import (
 	"time"
 
 	"github.com/dmoebius/tg-agent/internal/prompt"
+	"github.com/dmoebius/tg-agent/internal/vm"
 )
 
-// Start creates the VM on first run, starts it and waits until it is
-// provisioned and Claude is logged in.
+// Start creates the VM on first run (asking for its resources), starts it
+// and waits until it is provisioned and Claude is logged in.
 func Start(ctx context.Context) error {
 	m, err := setup(ctx)
 	if err != nil {
 		return err
+	}
+	st, err := m.State(ctx)
+	if err != nil {
+		return err
+	}
+	if st == vm.Missing {
+		if err := chooseResources(ctx, m); err != nil {
+			return err
+		}
 	}
 	fmt.Println("VM starting...")
 	forum, err := checkForum(ctx, m.Cfg.Telegram)

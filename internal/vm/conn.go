@@ -184,6 +184,28 @@ func (c *Conn) Update(ctx context.Context, tg config.Telegram) error {
 	return nil
 }
 
+// growRootFS grows the partition holding / to the end of its disk and the
+// filesystem on it. growpart exits with 1 if there is nothing to grow.
+const growRootFS = `set -e
+src=$(findmnt -no SOURCE /)
+disk=/dev/$(lsblk -no PKNAME "$src")
+part=$(cat /sys/class/block/$(basename "$src")/partition)
+sudo growpart "$disk" "$part" || [ $? -eq 1 ]
+case $(findmnt -no FSTYPE /) in
+  xfs) sudo xfs_growfs / ;;
+  *) sudo resize2fs "$src" ;;
+esac
+df -h /`
+
+// GrowRootFS makes the VM use a grown disk at once: it grows the root
+// partition and filesystem, as cloud-init otherwise does on the next boot.
+func (c *Conn) GrowRootFS(ctx context.Context) error {
+	if err := c.r.Run(ctx, c.out, nil, "bash -c "+shellQuote(growRootFS)); err != nil {
+		return fmt.Errorf("grow the root filesystem in the VM: %w", err)
+	}
+	return nil
+}
+
 // upload returns a command that writes stdin to f.Path with f.Mode, without
 // the content ever being readable by others.
 func upload(f provision.File) string {

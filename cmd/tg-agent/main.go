@@ -60,8 +60,14 @@ func newRootCmd() *cobra.Command {
 	start := &cobra.Command{
 		Use:   "start",
 		Short: "Create the VM on first run, start it and wait until Takopi runs",
-		Args:  cobra.NoArgs,
-		RunE:  func(c *cobra.Command, _ []string) error { return cmd.Start(c.Context()) },
+		Long: `Creates the VM on first run (or after "tg-agent delete"), starts it and waits
+until it is provisioned and Takopi runs.
+
+When it creates the VM, it asks for its CPUs, memory and disk size, offering
+the Config's values, and saves the answers to the Config; without a terminal it
+uses the Config's values. To change them later, use "tg-agent update".`,
+		Args: cobra.NoArgs,
+		RunE: func(c *cobra.Command, _ []string) error { return cmd.Start(c.Context()) },
 	}
 
 	stop := &cobra.Command{
@@ -78,12 +84,33 @@ func newRootCmd() *cobra.Command {
 		RunE:  func(c *cobra.Command, _ []string) error { return cmd.Status(c.Context()) },
 	}
 
+	var res cmd.ResourceFlags
 	update := &cobra.Command{
-		Use:   "update",
-		Short: "Push Telegram settings, re-run provisioning (install and upgrade tools), restart Takopi",
-		Args:  cobra.NoArgs,
-		RunE:  func(c *cobra.Command, _ []string) error { return cmd.Update(c.Context()) },
+		Use:   "update [--cpus N] [--memory SIZE] [--disk SIZE]",
+		Short: "Apply the Config to the VM, re-run provisioning (install and upgrade tools), restart Takopi",
+		Long: `Writes the given resource flags to the Config, then brings the running VM in
+line with the Config: grows its disk, sets its CPUs and memory, pushes the
+Telegram settings into Takopi's config, re-runs the provisioning (apt upgrade,
+installs new tools, upgrades Claude, Takopi etc.) and restarts Takopi.
+
+Values changed by hand in the Config are applied as well, so "tg-agent update"
+without flags reconciles the VM with the Config.
+
+  --cpus N       number of CPUs, at most the Host's
+  --memory SIZE  memory, e.g. 16G or 16384M; a plain number means MiB
+  --disk SIZE    disk size, e.g. 100G; a plain number means GiB. The disk
+                 only grows, inside the VM at once.
+
+New CPUs and memory take effect when the VM restarts. update shows the old and
+new values and asks whether to restart the VM now (running Sessions are
+interrupted); without a terminal it refuses, and the change takes effect on the
+next start of the VM.`,
+		Args: cobra.NoArgs,
+		RunE: func(c *cobra.Command, _ []string) error { return cmd.Update(c.Context(), res) },
 	}
+	update.Flags().IntVar(&res.CPUs, "cpus", 0, "number of CPUs")
+	update.Flags().StringVar(&res.Memory, "memory", "", "memory, e.g. 16G (plain number: MiB)")
+	update.Flags().StringVar(&res.Disk, "disk", "", "disk size, e.g. 100G (plain number: GiB); can only grow")
 
 	shell := &cobra.Command{
 		Use:     "shell [<command> [<args>...]]",

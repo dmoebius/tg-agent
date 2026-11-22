@@ -12,6 +12,10 @@ _Avoid_: server, local machine
 The single, persistent virtual machine in which all agents work; it and everything on it survive restarts and updates.
 _Avoid_: guest, domain, box, sandbox
 
+**Resources**:
+The VM's CPUs, memory and disk size; set in the Config, chosen when the VM is created and changed by an Update.
+_Avoid_: specs, size, hardware
+
 **Config**:
 The user's settings for tg-agent, kept on the Host; the source of truth for everything tg-agent sets up in the VM.
 _Avoid_: settings, takopi config

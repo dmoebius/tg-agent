@@ -13,7 +13,7 @@ func TestLoadDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.VM.CPUs != 4 || c.VM.LibvirtURI != "qemu:///system" {
+	if c.VM.CPUs != DefaultCPUs() || c.VM.LibvirtURI != "qemu:///system" {
 		t.Fatalf("defaults not applied: %+v", c.VM)
 	}
 	if c.Validate() != nil || len(c.Telegram.AllowedUserIDs) != 2 {

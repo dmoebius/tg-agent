@@ -162,6 +162,16 @@ func (m *Manager) create(ctx context.Context) error {
 	// undefined) is reused, never wiped, so the Workspace survives.
 	if _, err := os.Stat(m.disk()); err == nil {
 		fmt.Fprintf(m.Out, "Reusing existing disk %s\n", m.disk())
+		gb, err := m.DiskImageGB(ctx)
+		if err != nil {
+			return err
+		}
+		if gb < m.Cfg.VM.DiskGB {
+			fmt.Fprintf(m.Out, "Growing it from %d to %d GiB\n", gb, m.Cfg.VM.DiskGB)
+			if err := m.GrowDisk(ctx, m.Cfg.VM.DiskGB); err != nil {
+				return err
+			}
+		}
 	} else if errors.Is(err, os.ErrNotExist) {
 		if _, err := os.Stat(m.baseImg()); errors.Is(err, os.ErrNotExist) {
 			fmt.Fprintf(m.Out, "Downloading %s ...\n", m.Cfg.VM.ImageURL)
