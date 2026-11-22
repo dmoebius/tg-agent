@@ -20,16 +20,31 @@ import (
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	if err := newRootCmd().ExecuteContext(ctx); err != nil {
-		var exit *vm.ExitError
-		if errors.As(err, &exit) {
-			os.Exit(exit.Code)
-		}
-		if errors.Is(err, prompt.ErrInterrupted) {
-			os.Exit(130) // like a shell after Ctrl-C
-		}
+	err := newRootCmd().ExecuteContext(ctx)
+	code, show := exitCode(err)
+	if show {
 		fmt.Fprintln(os.Stderr, "error:", err)
-		os.Exit(1)
+	}
+	if code != 0 {
+		stop()
+		os.Exit(code)
+	}
+}
+
+// exitCode returns the exit status for the error of a command and whether
+// the error should be printed. The exit status of a command run in the VM is
+// passed through silently, Ctrl-C at a prompt exits like a shell.
+func exitCode(err error) (code int, show bool) {
+	var exit *vm.ExitError
+	switch {
+	case err == nil:
+		return 0, false
+	case errors.As(err, &exit):
+		return exit.Code, false
+	case errors.Is(err, prompt.ErrInterrupted):
+		return 130, false
+	default:
+		return 1, true
 	}
 }
 

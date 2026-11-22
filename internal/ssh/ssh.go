@@ -58,7 +58,9 @@ func (c Client) Output(ctx context.Context, cmd string) (string, error) {
 	return string(b), err
 }
 
-// Command returns the interactive command line users can paste.
+// Command returns the interactive command line users can paste. It uses
+// tg-agent's own known_hosts: the VM's host key changes when it is
+// re-created, often under the same IP, which would trip the user's.
 func (c Client) Command() string {
-	return "ssh -i " + c.Key + " agent@" + c.Host
+	return "ssh -i " + c.Key + " -o IdentitiesOnly=yes -o UserKnownHostsFile=" + c.KnownHosts + " agent@" + c.Host
 }
