@@ -40,6 +40,10 @@ func Merge(existing string, tg config.Telegram) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	files, err := table(telegram, "files")
+	if err != nil {
+		return "", err
+	}
 	claude, err := table(doc, "claude")
 	if err != nil {
 		return "", err
@@ -54,6 +58,9 @@ func Merge(existing string, tg config.Telegram) (string, error) {
 	telegram["session_mode"] = "chat"
 	topics["enabled"] = true
 	topics["scope"] = "main"
+	// File transfer (/file) for the Allowed Users; with an empty list Takopi
+	// would allow it only for the Forum's admins.
+	files["allowed_user_ids"] = tg.AllowedUserIDs
 
 	// Defaults only: the user may change these in the VM.
 	setDefault(doc, "default_engine", "claude")
@@ -64,6 +71,7 @@ func Merge(existing string, tg config.Telegram) (string, error) {
 	// A list replaces Takopi's default (Bash, Read, Edit, Write), so it
 	// repeats those and adds web access.
 	setDefault(claude, "allowed_tools", AllowedTools)
+	setDefault(files, "enabled", true)
 
 	var b bytes.Buffer
 	if err := toml.NewEncoder(&b).Encode(doc); err != nil {

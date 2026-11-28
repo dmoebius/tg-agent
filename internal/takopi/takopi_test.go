@@ -27,6 +27,10 @@ type parsed struct {
 				Enabled bool   `toml:"enabled"`
 				Scope   string `toml:"scope"`
 			} `toml:"topics"`
+			Files struct {
+				Enabled        bool    `toml:"enabled"`
+				AllowedUserIDs []int64 `toml:"allowed_user_ids"`
+			} `toml:"files"`
 		} `toml:"telegram"`
 	} `toml:"transports"`
 	Projects map[string]struct {
@@ -61,6 +65,9 @@ func TestMergeFresh(t *testing.T) {
 		tt.SessionMode != "chat" || tt.ShowResumeLine || tt.Overflow != "split" || !tt.Topics.Enabled || tt.Topics.Scope != "main" {
 		t.Fatalf("%+v", p)
 	}
+	if !tt.Files.Enabled || len(tt.Files.AllowedUserIDs) != 2 {
+		t.Fatalf("file transfer not enabled for the allowed users: %+v", tt.Files)
+	}
 	if got := strings.Join(p.Claude.AllowedTools, " "); got != "Bash Read Edit Write WebSearch WebFetch" {
 		t.Fatalf("claude.allowed_tools = %q", got)
 	}
@@ -81,6 +88,10 @@ message_overflow = "trim"
 [transports.telegram.topics]
 enabled = false
 
+[transports.telegram.files]
+enabled = false
+allowed_user_ids = [9]
+
 [projects.foo]
 path = "/home/agent/work/foo"
 worktrees_dir = ".worktrees"
@@ -90,10 +101,11 @@ worktree_base = "main"
 allowed_tools = ["Read"]
 `)
 	tt := p.Transports.Telegram
-	if tt.BotToken != "new-token" || tt.ChatID != -100123 || len(tt.AllowedUserIDs) != 2 || !tt.Topics.Enabled {
+	if tt.BotToken != "new-token" || tt.ChatID != -100123 || len(tt.AllowedUserIDs) != 2 || !tt.Topics.Enabled ||
+		len(tt.Files.AllowedUserIDs) != 2 {
 		t.Fatalf("managed keys not enforced: %+v", tt)
 	}
-	if p.DefaultEngine != "codex" || !tt.ShowResumeLine || tt.Overflow != "trim" || p.DefaultProject != "foo" ||
+	if p.DefaultEngine != "codex" || !tt.ShowResumeLine || tt.Overflow != "trim" || tt.Files.Enabled || p.DefaultProject != "foo" ||
 		strings.Join(p.Claude.AllowedTools, " ") != "Read" {
 		t.Fatalf("user settings overwritten: %+v", p)
 	}
@@ -127,7 +139,7 @@ func TestDrift(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "transports.telegram.allowed_user_ids transports.telegram.bot_token"
+	want := "transports.telegram.allowed_user_ids transports.telegram.bot_token transports.telegram.files.allowed_user_ids"
 	if got := strings.Join(d, " "); got != want {
 		t.Errorf("Drift(changed) = %q, want %q", got, want)
 	}
