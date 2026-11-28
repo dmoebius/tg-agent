@@ -73,7 +73,7 @@ Projects are registered with Takopi inside the VM, not in `config.toml`. Either 
 
 `takopi init` uses `.worktrees` for branch worktrees and the repo's default branch as their base. Takopi picks up the change immediately (`watch_config`). Private repositories need git credentials in the VM: log in once with `gh auth login` / `glab auth login` or add an SSH key.
 
-`tg-agent update` only merges its own keys (bot token, chat ID, allowed users, topic mode) into `~/.takopi/takopi.toml`; projects and other Takopi settings are kept. A few settings are only defaults, set when missing and then left to you: `default_engine = "claude"`, `show_resume_line = false` and `[claude] allowed_tools = ["Bash", "Read", "Edit", "Write", "WebSearch", "WebFetch"]` (Takopi itself allows only the first four, so Sessions could not search or fetch web pages).
+`tg-agent update` only merges its own keys (bot token, chat ID, allowed users, topic mode) into `~/.takopi/takopi.toml`; projects and other Takopi settings are kept. A few settings are only defaults, set when missing and then left to you: `default_engine = "claude"`, `show_resume_line = false`, `message_overflow = "split"` (long answers are split into several messages instead of cut off) and `[claude] allowed_tools = ["Bash", "Read", "Edit", "Write", "WebSearch", "WebFetch"]` (Takopi itself allows only the first four, so Sessions could not search or fetch web pages).
 
 Send `/topic <alias> @<branch>` in the forum: Takopi creates a new topic named after it and binds it. A topic you create by hand in Telegram stays unbound until you send `/ctx set <alias> @<branch>` in it. `/ctx` shows the binding, `/new` resets the topic's session.
 

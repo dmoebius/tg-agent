@@ -22,6 +22,7 @@ type parsed struct {
 			AllowedUserIDs []int64 `toml:"allowed_user_ids"`
 			SessionMode    string  `toml:"session_mode"`
 			ShowResumeLine bool    `toml:"show_resume_line"`
+			Overflow       string  `toml:"message_overflow"`
 			Topics         struct {
 				Enabled bool   `toml:"enabled"`
 				Scope   string `toml:"scope"`
@@ -57,7 +58,7 @@ func TestMergeFresh(t *testing.T) {
 	tt := p.Transports.Telegram
 	if p.Transport != "telegram" || p.DefaultEngine != "claude" || !p.WatchConfig ||
 		tt.BotToken != "new-token" || tt.ChatID != -100123 || len(tt.AllowedUserIDs) != 2 ||
-		tt.SessionMode != "chat" || tt.ShowResumeLine || !tt.Topics.Enabled || tt.Topics.Scope != "main" {
+		tt.SessionMode != "chat" || tt.ShowResumeLine || tt.Overflow != "split" || !tt.Topics.Enabled || tt.Topics.Scope != "main" {
 		t.Fatalf("%+v", p)
 	}
 	if got := strings.Join(p.Claude.AllowedTools, " "); got != "Bash Read Edit Write WebSearch WebFetch" {
@@ -75,6 +76,7 @@ bot_token = "old-token"
 chat_id = -1
 allowed_user_ids = [9]
 show_resume_line = true
+message_overflow = "trim"
 
 [transports.telegram.topics]
 enabled = false
@@ -91,7 +93,7 @@ allowed_tools = ["Read"]
 	if tt.BotToken != "new-token" || tt.ChatID != -100123 || len(tt.AllowedUserIDs) != 2 || !tt.Topics.Enabled {
 		t.Fatalf("managed keys not enforced: %+v", tt)
 	}
-	if p.DefaultEngine != "codex" || !tt.ShowResumeLine || p.DefaultProject != "foo" ||
+	if p.DefaultEngine != "codex" || !tt.ShowResumeLine || tt.Overflow != "trim" || p.DefaultProject != "foo" ||
 		strings.Join(p.Claude.AllowedTools, " ") != "Read" {
 		t.Fatalf("user settings overwritten: %+v", p)
 	}

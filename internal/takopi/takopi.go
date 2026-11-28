@@ -58,6 +58,9 @@ func Merge(existing string, tg config.Telegram) (string, error) {
 	// Defaults only: the user may change these in the VM.
 	setDefault(doc, "default_engine", "claude")
 	setDefault(telegram, "show_resume_line", false)
+	// Split long answers into several messages instead of cutting them off
+	// (Takopi's default, "trim").
+	setDefault(telegram, "message_overflow", "split")
 	// A list replaces Takopi's default (Bash, Read, Edit, Write), so it
 	// repeats those and adds web access.
 	setDefault(claude, "allowed_tools", AllowedTools)
